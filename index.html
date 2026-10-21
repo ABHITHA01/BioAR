@@ -550,6 +550,14 @@ const cache = {};
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
 /* ---------------- loading ---------------- */
+/* models live in models/ — but also work if they were uploaded next to index.html */
+let MODEL_DIR = null;
+async function modelDir() {
+  if (MODEL_DIR !== null) return MODEL_DIR;
+  try { const r = await fetch("models/body.json", { method: "HEAD" }); MODEL_DIR = r.ok ? "models/" : ""; }
+  catch (e) { MODEL_DIR = "models/"; }
+  return MODEL_DIR;
+}
 async function fetchOrgan(slug) {
   if (cache[slug]) return cache[slug];
   let gltf, meta, flow = null;
@@ -562,9 +570,10 @@ async function fetchOrgan(slug) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     gltf = await loader.parseAsync(bytes.buffer, "");
   } else {
-    const [m, g] = await Promise.all([fetch(`models/${slug}.json`).then(r => r.json()), loader.loadAsync(`models/${slug}.glb`)]);
+    const dir = await modelDir();
+    const [m, g] = await Promise.all([fetch(`${dir}${slug}.json`).then(r => r.json()), loader.loadAsync(`${dir}${slug}.glb`)]);
     meta = m; gltf = g;
-    try { flow = await fetch(`models/${slug}.flow.json`).then(r => r.ok ? r.json() : null); } catch (e) { flow = null; }
+    try { flow = await fetch(`${dir}${slug}.flow.json`).then(r => r.ok ? r.json() : null); } catch (e) { flow = null; }
   }
   return (cache[slug] = { gltf, meta, flow });
 }
@@ -904,7 +913,7 @@ async function startAR() {
   }
   if (quickLook) return openQuickLook();
   if (/Android/i.test(navigator.userAgent) && MODEL_MODE === "glb") {
-    const file = new URL(`models/${S.organ}.glb`, location.href).href;
+    const file = new URL(`${MODEL_DIR ?? "models/"}${S.organ}.glb`, location.href).href;
     location.href = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(file)}&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(location.href)};end;`;
     return;
   }
@@ -1597,7 +1606,8 @@ async function fetchBody() {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     gltf = await loader.parseAsync(bytes.buffer, "");
   } else {
-    const [m, g] = await Promise.all([fetch("models/body.json").then(r => r.json()), loader.loadAsync("models/body.glb")]);
+    const dir = await modelDir();
+    const [m, g] = await Promise.all([fetch(`${dir}body.json`).then(r => r.json()), loader.loadAsync(`${dir}body.glb`)]);
     meta = m; gltf = g;
   }
   return (cache.body = { gltf, meta });
