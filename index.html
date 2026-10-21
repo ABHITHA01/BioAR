@@ -1,0 +1,2328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BioAR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+} }
+</script>
+<style>
+/* Layout: an anatomy plate — a large dissection stage with its tools floating on it, a specimen index above, field notes beside; QR sheet and credits below. */
+:root {
+  --bg: #eef1ef;
+  --surface: #f8faf9;
+  --ink: #1d2626;
+  --muted: #5c6967;
+  --line: #d3dbd8;
+  --accent: #8c2b2b;
+  --accent-ink: #ffffff;
+  --glass: rgba(250, 252, 251, 0.92);
+  --glass-ink: #1d2626;
+  --glass-line: rgba(29, 38, 38, 0.12);
+  --stage: radial-gradient(120% 90% at 50% 30%, #ffffff 0%, #e3e8e6 70%, #d7dedb 100%);
+  --display: "Spectral", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --qr-bg: #ffffff;
+  --qr-ink: #111111;
+  --danger: #b42318;
+  --danger-bg: #fdecea;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111717; --surface: #182120; --ink: #e6ecea; --muted: #97a6a3; --line: #2b3735;
+    --accent: #e08a84; --accent-ink: #1a0f0e;
+    --glass: rgba(24, 33, 32, 0.9); --glass-ink: #e6ecea; --glass-line: rgba(230, 236, 234, 0.14);
+    --stage: radial-gradient(120% 90% at 50% 30%, #25302f 0%, #151c1c 75%, #101515 100%);
+    --danger: #ff8a80; --danger-bg: #3a1614;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111717; --surface: #182120; --ink: #e6ecea; --muted: #97a6a3; --line: #2b3735;
+  --accent: #e08a84; --accent-ink: #1a0f0e;
+  --glass: rgba(24, 33, 32, 0.9); --glass-ink: #e6ecea; --glass-line: rgba(230, 236, 234, 0.14);
+  --stage: radial-gradient(120% 90% at 50% 30%, #25302f 0%, #151c1c 75%, #101515 100%);
+  --danger: #ff8a80; --danger-bg: #3a1614;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 24px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; text-wrap: balance; margin: 0; line-height: 1.15; }
+.eyebrow { font-family: var(--mono); font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+header.top h1 { font-size: clamp(26px, 5vw, 38px); }
+header.top h1 i { font-weight: 500; color: var(--accent); }
+header.top p { margin: 0; color: var(--muted); max-width: 48ch; font-size: 14px; }
+
+.index { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.index button { flex: 0 0 auto; display: grid; gap: 1px; text-align: left; cursor: pointer; background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 7px 14px 8px; }
+.index .n { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: .08em; }
+.index .t { font-weight: 600; font-size: 14.5px; }
+.index button:hover { border-color: var(--muted); }
+.index button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.index button[aria-pressed="true"] .n { color: inherit; opacity: .8; }
+
+.plate { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 880px) { .plate { grid-template-columns: minmax(0, 1fr); } }
+
+/* stage */
+.splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: radial-gradient(90% 70% at 50% 45%, #0f2c40 0%, #061520 65%, #03090f 100%);
+  color: #d4f1ff; transition: opacity .6s ease, visibility .6s; padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(16px, env(safe-area-inset-left, 0px)); cursor: pointer; }
+.splash.out { opacity: 0; visibility: hidden; }
+.splash-in { display: grid; justify-items: center; gap: 14px; width: min(560px, 100%); }
+.splash-logo { font-family: var(--display); font-weight: 700; font-size: clamp(54px, 15vw, 96px); letter-spacing: -0.02em; line-height: 1; }
+.splash-logo span { color: #4cc9f0; font-style: italic; font-weight: 500; text-shadow: 0 0 24px rgba(76, 201, 240, .55); }
+.ecg { width: 100%; height: auto; max-width: 100%; }
+.ecg path { fill: none; stroke: #4cc9f0; stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; filter: drop-shadow(0 0 6px rgba(76, 201, 240, .8));
+  stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: ecg 1.8s ease-in-out infinite; }
+@keyframes ecg { 0% { stroke-dashoffset: 1400; } 60% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -1400; } }
+.splash-sub { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: #9cc9de; }
+.splash-tap { font-size: 12px; color: #5f8ea4; }
+@media (prefers-reduced-motion: reduce) { .ecg path { animation: none; stroke-dashoffset: 0; } }
+.qopts { display: grid; gap: 6px; }
+.qopt { text-align: left; padding: 8px 10px !important; font-size: 13px !important; }
+.qopt.right { background: #2f9e44 !important; color: #fff !important; border-color: #2f9e44 !important; }
+.qopt.wrong { background: var(--danger-bg) !important; color: var(--danger) !important; border-color: var(--danger) !important; }
+.qfb { font-size: 13px; line-height: 1.45; display: grid; gap: 6px; }
+.qfb p { margin: 0; }
+.qfb .good { color: #2f9e44; } .qfb .bad { color: var(--danger); }
+@media (max-width: 560px) {
+  header.top p { display: none; }
+  .stage { height: 70svh; min-height: 420px; }
+}
+.stage.dark { background: radial-gradient(120% 90% at 50% 35%, #12324a 0%, #07141f 70%, #040b12 100%); border-color: #12324a; }
+.stage.dark .status, .stage.dark .ruler { color: #9cc9de; }
+#ui > #bodyLabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.blabel { position: absolute; left: 0; top: 0; pointer-events: auto; background: rgba(6, 26, 38, 0.78); color: #d4f1ff; border: 1px solid rgba(76, 201, 240, 0.6);
+  border-radius: 999px; padding: 4px 11px; font: 600 12px var(--body); white-space: nowrap; cursor: pointer; box-shadow: 0 0 14px rgba(76, 201, 240, 0.25); }
+.blabel:hover, .blabel.on { background: #4cc9f0; color: #04121b; }
+.blabel:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+#bodyCard .open { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 14px; font: 600 14px var(--body); cursor: pointer; }
+.stage { container-type: size; position: relative; border-radius: 10px; overflow: hidden; background: var(--stage); border: 1px solid var(--line); height: min(74vh, 640px); min-height: 440px; touch-action: none; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.status { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--mono); font-size: 12px; color: var(--muted); pointer-events: none; text-align: center; padding: 24px; }
+
+/* tool overlay (also the AR overlay) */
+#ui { position: absolute; inset: 0; pointer-events: none; color: var(--glass-ink); }
+#ui > * { pointer-events: auto; }
+#ui.ar { position: fixed; inset: 0; pointer-events: auto; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+.glass { background: var(--glass); border: 1px solid var(--glass-line); border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.14); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.toolbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; display: flex; gap: 4px; padding: 5px; max-width: calc(100% - 24px); overflow-x: auto; }
+#ui.ar .toolbar { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+.tool { flex: 0 0 auto; display: grid; justify-items: center; gap: 2px; min-width: 54px; padding: 6px 9px 5px; border: 0; background: transparent; border-radius: 7px; cursor: pointer; font-size: 11.5px; font-weight: 500; white-space: nowrap; }
+.tool svg { width: 20px; height: 20px; }
+.tool:hover { background: var(--glass-line); }
+.tool[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.tool.primary { background: var(--accent); color: var(--accent-ink); }
+.tool[hidden] { display: none; }
+.fnpanel { position: absolute; left: 50%; transform: translateX(-50%); bottom: 78px; width: min(430px, calc(100% - 24px)); padding: 10px 12px; display: grid; gap: 7px; }
+@container (min-width: 620px) {
+  .fnpanel { left: auto; right: 12px; top: 12px; bottom: auto; transform: none; width: 300px; }
+  .fnpanel p { max-height: none !important; }
+}
+#ui.ar .fnpanel { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+.fnpanel .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fnpanel .eyebrow { color: var(--muted); }
+.fnpanel h4 { margin: 0; font-family: var(--display); font-size: 17.5px; line-height: 1.2; text-wrap: balance; }
+.fnpanel p { margin: 0; font-size: 13px; line-height: 1.45; max-height: 4.4em; overflow-y: auto; }
+.fnpanel .note { font-size: 12px; color: var(--muted); }
+.fnrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.fnrow label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.fnrow input[type="range"] { flex: 1; min-width: 100px; }
+.fnrow .val { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 54px; text-align: right; white-space: nowrap; }
+#fnRateRow { flex-wrap: nowrap; }
+#fnRateRow input[type="range"] { min-width: 60px; }
+.icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--glass-line); background: transparent; border-radius: 8px; cursor: pointer; }
+.icon-btn svg { width: 17px; height: 17px; }
+.icon-btn.play { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mini[aria-pressed="true"] { background: var(--glass-ink); color: var(--glass); border-color: var(--glass-ink); }
+.dots { display: flex; gap: 5px; flex: 1; justify-content: center; }
+.dots button { width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 0; background: var(--glass-line); cursor: pointer; }
+.dots button[aria-current="true"] { background: var(--accent); width: 20px; border-radius: 5px; }
+.fnpanel .note:empty { display: none; }
+.hpanel { max-height: calc(100% - 100px); overflow-y: auto; }
+@container (min-width: 620px) { .hpanel { width: 330px; max-height: calc(100% - 100px); } }
+@container (max-width: 619px) { .hpanel { max-height: 52%; } }
+.hpanel .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.chip { flex: 0 0 auto; border: 1px solid var(--glass-line); background: transparent; border-radius: 999px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.hpanel h4 { font-size: 18px; }
+.hpanel p { max-height: none; font-size: 13px; }
+.hpanel ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; display: grid; gap: 3px; }
+.hpanel details { border-top: 1px solid var(--glass-line); padding-top: 6px; }
+.hpanel summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.hslide { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.hslide input { flex: 1; min-width: 80px; }
+.hslide span:last-child { max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--danger); }
+.emerg { display: grid; gap: 2px; background: var(--danger-bg); color: var(--danger); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; line-height: 1.45; }
+.emerg strong { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.emerg span { color: var(--glass-ink); }
+.hpanel .disc { font-size: 11.5px; color: var(--muted); }
+.hpanel .acts { display: flex; gap: 6px; }
+
+.panel { position: absolute; left: 50%; transform: translateX(-50%); bottom: 84px; width: min(360px, calc(100% - 24px)); padding: 12px 14px; display: grid; gap: 10px; }
+#ui.ar .panel { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+.panel .row { display: flex; gap: 6px; align-items: center; }
+.seg { display: flex; border: 1px solid var(--glass-line); border-radius: 7px; overflow: hidden; flex: 1; }
+.seg button { flex: 1; border: 0; background: transparent; padding: 6px 4px; font-size: 12.5px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--glass-ink); color: var(--glass); }
+.panel label { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.mini { border: 1px solid var(--glass-line); background: transparent; border-radius: 7px; padding: 6px 10px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+
+/* part card */
+.card { position: absolute; top: 12px; left: 12px; width: min(330px, calc(100% - 24px)); padding: 12px 14px 12px; display: grid; gap: 6px; }
+#ui.ar .card { top: calc(12px + env(safe-area-inset-top, 0px)); }
+.card h3 { font-size: 21px; }
+.card .grp { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.card p { margin: 0; font-size: 13.5px; line-height: 1.5; }
+.card .fact { color: var(--muted); font-size: 13px; padding-left: 10px; border-left: 2px solid var(--accent); }
+.card .acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.card .x { position: absolute; top: 6px; right: 6px; border: 0; background: transparent; width: 30px; height: 30px; border-radius: 6px; cursor: pointer; font-size: 18px; line-height: 1; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+
+/* parts drawer */
+.drawer { position: absolute; top: 12px; right: 12px; bottom: 84px; width: min(270px, calc(100% - 24px)); padding: 10px 6px 10px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 6px; }
+#ui.ar .drawer { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+.drawer .head { display: flex; justify-content: space-between; align-items: center; padding-right: 6px; }
+.drawer .head strong { font-family: var(--display); font-size: 18px; }
+.plist { overflow-y: auto; display: grid; gap: 1px; align-content: start; padding-right: 6px; }
+.plist .g { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 8px 0 3px; }
+.prow { display: flex; align-items: center; gap: 4px; }
+.prow .nm { flex: 1; text-align: left; border: 0; background: transparent; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; min-width: 0; }
+.prow .nm:hover { background: var(--glass-line); }
+.prow .nm[aria-current="true"] { background: var(--accent); color: var(--accent-ink); }
+.prow .eye { border: 0; background: transparent; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; opacity: .8; }
+.prow .eye svg { width: 16px; height: 16px; }
+.prow.off .nm { opacity: .45; text-decoration: line-through; }
+
+.hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); padding: 8px 14px; font-size: 13px; text-align: center; max-width: calc(100% - 24px); }
+#ui.ar .hint { top: calc(14px + env(safe-area-inset-top, 0px)); }
+.ruler { position: absolute; left: 14px; bottom: 16px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none !important; }
+#ui.ar .ruler { display: none; }
+@media (max-width: 560px) { .ruler { display: none; } .tool { min-width: 0; padding: 6px 8px 5px; font-size: 11px; } }
+
+/* notes */
+.notes { display: grid; gap: 16px; min-width: 0; }
+.notes h2 { font-size: clamp(30px, 4.4vw, 42px); }
+.latin { font-family: var(--display); font-style: italic; font-weight: 500; color: var(--muted); font-size: 18px; margin-top: 2px; }
+.dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 0; }
+.dl div { padding: 10px 10px 10px 0; display: grid; gap: 2px; }
+.dl div + div { padding-left: 12px; border-left: 1px solid var(--line); }
+.dl dt { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.dl dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; font-size: 14px; }
+.facts { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+.facts li { padding-left: 18px; position: relative; max-width: 60ch; }
+.facts li::before { content: ""; position: absolute; left: 0; top: .62em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.how { font-size: 13.5px; color: var(--muted); margin: 0; display: grid; gap: 6px; padding: 0; list-style: none; }
+.how li { padding-left: 12px; border-left: 2px solid var(--line); }
+.how b { color: var(--ink); font-weight: 600; }
+
+section.sheet { display: grid; gap: 16px; border-top: 1px solid var(--line); padding-top: 22px; }
+.sheet h3 { font-size: 26px; }
+.sheet p { margin: 4px 0 0; color: var(--muted); max-width: 60ch; font-size: 14px; }
+.linkrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.linkrow label { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); width: 100%; }
+.linkrow input { flex: 1 1 280px; min-width: 0; font: 14px var(--mono); padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.btn { font: 600 13.5px var(--body); padding: 9px 14px; border-radius: 6px; border: 1px solid var(--ink); background: var(--ink); color: var(--bg); cursor: pointer; }
+.qrgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 860px) { .qrgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.qr { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; justify-items: center; text-align: center; }
+.qr .code { background: var(--qr-bg); padding: 8px; border-radius: 4px; width: 100%; max-width: 170px; aspect-ratio: 1; }
+.qr .code svg { width: 100%; height: 100%; display: block; }
+.qr strong { font-family: var(--display); font-size: 18px; }
+.qr .url { font-family: var(--mono); font-size: 10.5px; color: var(--muted); word-break: break-all; }
+.qr button { font: 500 12.5px var(--body); background: none; border: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+footer.credits { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 8px; font-size: 13px; color: var(--muted); }
+footer.credits h3 { font-size: 18px; color: var(--ink); }
+footer.credits p { margin: 0; max-width: 92ch; }
+footer.credits a { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div id="splash" class="splash" role="status" aria-label="BioAR is loading">
+  <div class="splash-in">
+    <div class="splash-logo">Bio<span>AR</span></div>
+    <svg class="ecg" viewBox="0 0 600 120" aria-hidden="true"><path d="M0 70 H170 L190 70 L205 55 L220 70 L245 70 L258 98 L275 10 L292 112 L306 70 L340 70 L360 52 L382 70 H600"/></svg>
+    <div class="splash-sub">Step inside the human body</div>
+    <div class="splash-tap">Tap to skip</div>
+  </div>
+</div>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Organ AR Atlas · life-size AR dissection</div>
+      <h1>Bio<i>AR</i></h1>
+    </div>
+    <p>Scan an organ's QR code, place it life-size in your room, then slice it open, pull it apart and tap any part to study it.</p>
+  </header>
+
+  <nav class="index" id="index" aria-label="Choose an organ"></nav>
+
+  <div class="plate">
+    <div class="stage" id="stage">
+      <canvas id="gl" aria-label="3D organ model. Drag to rotate, pinch or scroll to zoom, tap a part to study it."></canvas>
+      <div class="status" id="status">Loading model…</div>
+      <div id="ui">
+        <div class="hint glass" id="hint" hidden></div>
+
+        <div class="card glass" id="card" hidden>
+          <button class="x" id="cardClose" type="button" aria-label="Close">×</button>
+          <div class="grp" id="cardGroup"></div>
+          <h3 id="cardName"></h3>
+          <p id="cardInfo"></p>
+          <p class="fact" id="cardFact"></p>
+          <div class="acts">
+            <button class="mini" id="isoBtn" type="button">Isolate</button>
+            <button class="mini" id="hideBtn" type="button">Hide</button>
+            <button class="mini" id="showAllBtn" type="button" hidden>Show all</button>
+          </div>
+        </div>
+
+        <div id="bodyLabels" hidden></div>
+        <div class="card glass" id="bodyCard" hidden>
+          <button class="x" id="bodyCardClose" type="button" aria-label="Close">×</button>
+          <div class="grp" id="bodyCardSys"></div>
+          <h3 id="bodyCardName"></h3>
+          <p id="bodyCardText"></p>
+          <div class="acts"><button class="open" id="bodyOpen" type="button">Open</button></div>
+        </div>
+
+        <div class="drawer glass" id="drawer" hidden>
+          <div class="head"><strong>Parts</strong><button class="mini" id="drawerShowAll" type="button">Show all</button></div>
+          <div class="plist" id="plist"></div>
+        </div>
+
+        <div class="panel glass" id="slicePanel" hidden>
+          <div class="row">
+            <div class="seg" role="group" aria-label="Cut direction">
+              <button type="button" data-axis="z" aria-pressed="true">Front</button>
+              <button type="button" data-axis="x" aria-pressed="false">Side</button>
+              <button type="button" data-axis="y" aria-pressed="false">Top</button>
+            </div>
+            <button class="mini" id="flipBtn" type="button">Flip</button>
+          </div>
+          <label for="sliceRange">Cut depth</label>
+          <input id="sliceRange" type="range" min="0" max="1000" value="500">
+        </div>
+
+        <div class="fnpanel glass" id="fnPanel" hidden>
+          <div class="top"><span class="eyebrow">How it works</span><span class="eyebrow" id="fnCount"></span></div>
+          <h4 id="fnTitle"></h4>
+          <p id="fnText"></p>
+          <div class="fnrow">
+            <button class="icon-btn" id="fnPrev" type="button" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+            <div class="dots" id="fnDots"></div>
+            <button class="icon-btn" id="fnNext" type="button" aria-label="Next step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+          </div>
+          <div class="fnrow" id="fnRateRow">
+            <button class="icon-btn play" id="fnPlay" type="button" aria-label="Pause"></button>
+            <label for="fnRate" id="fnRateLabel">Speed</label>
+            <input id="fnRate" type="range" min="25" max="200" value="100">
+            <span class="val" id="fnRateVal">1×</span>
+          </div>
+          <div class="fnrow">
+            <button class="mini" id="fnSee" type="button" aria-pressed="true">See-through</button>
+            <button class="mini" id="fnTour" type="button" aria-pressed="false">Auto tour</button>
+            <button class="mini" id="fnSound" type="button" aria-pressed="false">Sound off</button>
+          </div>
+          <div class="note" id="fnSoundNote" aria-live="polite"></div>
+        </div>
+
+        <div class="fnpanel hpanel glass" id="healthPanel" hidden>
+          <div class="top"><span class="eyebrow" id="hTitle">Health</span><button class="mini" id="hClose" type="button">Close</button></div>
+          <div class="chips" id="hChips" role="group" aria-label="Diseases"></div>
+          <div id="hBody"></div>
+          <div class="acts"><button class="mini" id="hPlay" type="button" aria-pressed="false">Show it working</button></div>
+        </div>
+
+        <div class="fnpanel hpanel glass" id="quizPanel" hidden>
+          <div class="top"><span class="eyebrow" id="qCount">Quiz</span><button class="mini" id="qClose" type="button">Close</button></div>
+          <div id="qBody"></div>
+        </div>
+
+        <div class="panel glass" id="explodePanel" hidden>
+          <label for="explodeRange">Pull apart</label>
+          <input id="explodeRange" type="range" min="0" max="1000" value="0">
+        </div>
+
+        <div class="toolbar glass" role="toolbar" aria-label="Dissection tools">
+          <button class="tool" id="sliceBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 20 4"/><path d="M14 4h6v6"/><circle cx="8" cy="8" r="4.5" stroke-dasharray="2 2"/></svg>Slice</button>
+          <button class="tool" id="explodeBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M4 4l3 3M20 4l-3 3M4 20l3-3M20 20l-3-3"/></svg>Pull apart</button>
+          <button class="tool" id="fnBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l2.5-6 4 12 3-9 1.5 3H22"/></svg>How it works</button>
+          <button class="tool" id="healthBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/><path d="M9 11h6M12 8v6"/></svg>Health</button>
+          <button class="tool" id="quizBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></svg>Quiz</button>
+          <button class="tool" id="partsBtn" type="button" aria-pressed="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>Parts</button>
+          <button class="tool" id="skelBtn" type="button" aria-pressed="true" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="4" r="2"/><path d="M12 6v8M8 9h8M9 12h6M12 14l-3 7M12 14l3 7"/></svg>Skeleton</button>
+          <button class="tool" id="sizeBtn" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 20h16M7 20V9M12 20V4M17 20v-7"/></svg><span id="sizeLabel">Life-size</span></button>
+          <button class="tool" id="bodyBtn" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="4.5" r="2.2"/><path d="M6 9h12M12 9v6M12 15l-3 6M12 15l3 6M8 9l-2 5M16 9l2 5"/></svg>Body</button>
+          <button class="tool" id="resetBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>Reset</button>
+          <button class="tool" id="moveBtn" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"/><path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"/></svg>Move</button>
+          <button class="tool primary" id="arBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5M12 12v10"/></svg><span id="arLabel">View in AR</span></button>
+          <button class="tool" id="exitBtn" type="button" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>Exit AR</button>
+        </div>
+        <div class="ruler" id="ruler"></div>
+      </div>
+    </div>
+
+    <article class="notes" aria-live="polite">
+      <div>
+        <div class="eyebrow" id="system"></div>
+        <h2 id="name"></h2>
+        <div class="latin" id="latin"></div>
+      </div>
+      <dl class="dl">
+        <div><dt>Model size</dt><dd id="size">—</dd></div>
+        <div><dt>Typical weight</dt><dd id="weight"></dd></div>
+        <div><dt>Location</dt><dd id="where"></dd></div>
+      </dl>
+      <ul class="facts" id="facts"></ul>
+      <ul class="how" id="how">
+        <li><b>Tap a part</b> to read what it does. Isolate it to study it alone, or hide it to see what's underneath.</li>
+        <li><b>Slice</b> cuts the organ open. Choose front, side or top and slide the cut through it. Cut faces show the tissue inside.</li>
+        <li><b>Pull apart</b> separates the parts so you can see how they fit together.</li>
+        <li id="arHow"><b>View in AR</b> places the organ life-size on your floor or table. Drag with one finger to turn it, pinch to resize, and tap parts to study them.</li>
+      </ul>
+    </article>
+  </div>
+
+  <section class="sheet" aria-labelledby="sheetTitle">
+    <div>
+      <h3 id="sheetTitle">QR codes</h3>
+      <p>Each code opens the app straight to one organ. Paste your app's public link and the codes update, ready to screenshot or print.</p>
+    </div>
+    <div class="linkrow">
+      <label for="base">App link</label>
+      <input id="base" type="url" spellcheck="false" autocomplete="off">
+      <button class="btn" id="apply" type="button">Update codes</button>
+    </div>
+    <div class="qrgrid" id="qrgrid"></div>
+  </section>
+
+  <footer class="credits">
+    <h3>Model credits</h3>
+    <p><b>Brain, liver, stomach, intestines:</b> BodyParts3D, © The Database Center for Life Science (DBCLS), licensed under CC BY 4.0 (earlier releases: CC BY-SA 2.1 Japan). Source: <a href="https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html" target="_blank" rel="noopener">dbarchive.biosciencedbc.jp</a>. Mitsuhashi et al., Nucleic Acids Research 2009.</p>
+    <p><b>Heart, lungs, kidneys and their vessels:</b> Human Reference Atlas 3D Reference Object Library (HuBMAP; Visible Human Male data from the U.S. National Library of Medicine), licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Source: <a href="https://humanatlas.io" target="_blank" rel="noopener">humanatlas.io</a> and <a href="https://3d.nih.gov/entries/3DPX-021008" target="_blank" rel="noopener">NIH 3D</a>.</p>
+    <p><b>Changes made:</b> structures grouped into study parts and rebuilt as closed, smooth surfaces; hollow organs given real wall thickness; stomach regions and lining derived from the stomach's shape; realistic surface colour and a wet finish added; compressed for phones. Real-world scale preserved. The adapted models are shared under the same terms.</p>
+    <p>Reference anatomy of one adult male. For learning only, not for diagnosis or clinical use. Viewer built with three.js (MIT).</p>
+  </footer>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { USDZExporter } from "three/addons/exporters/USDZExporter.js";
+
+/* "json": models ship as base64 data files (hosted on Claude). "glb": plain .glb + .json files (your own hosting). */
+const MODEL_MODE = "glb";
+const DEFAULT_BASE = "";
+
+const ORGANS = [
+  { slug: "brain", name: "Brain", latin: "Encephalon", system: "Nervous system", weight: "1.3–1.4 kg", where: "Skull",
+    facts: ["Contains about 86 billion neurons, linked by trillions of connections.",
+            "Uses roughly 20% of the body's energy while making up about 2% of its weight.",
+            "Slice it to see grey matter on the outside and white matter beneath, with the blue fluid-filled ventricles deep inside."] },
+  { slug: "heart", name: "Heart", latin: "Cor", system: "Circulatory system", weight: "250–350 g", where: "Mid chest",
+    facts: ["Beats about 100,000 times a day, pumping around 5 litres of blood a minute at rest.",
+            "Four chambers: two atria receive blood and two ventricles pump it out.",
+            "Slice it from the front to see the four chambers and the thick wall of the left ventricle."] },
+  { slug: "lungs", name: "Lungs", latin: "Pulmones", system: "Respiratory system", weight: "about 1.3 kg (pair)", where: "Chest",
+    facts: ["The right lung has three lobes; the left has two, leaving room for the heart.",
+            "Around 480 million alveoli give a gas-exchange surface of roughly 70 m².",
+            "Hide or slice the lobes to follow the bronchial tree branching inside."] },
+  { slug: "liver", name: "Liver", latin: "Hepar", system: "Digestive system", weight: "about 1.5 kg", where: "Upper right abdomen",
+    facts: ["The largest internal organ, with hundreds of jobs from making bile to storing glycogen.",
+            "It can regrow to full size after up to two-thirds of it is removed.",
+            "Surgeons divide it into eight Couinaud segments, each with its own blood supply. Pull it apart to see them."] },
+  { slug: "kidneys", name: "Kidneys", latin: "Renes", system: "Urinary system", weight: "about 150 g each", where: "Back of abdomen",
+    facts: ["Together they filter about 180 litres of blood plasma every day.",
+            "Of that, only 1–2 litres leaves the body as urine; the rest is reabsorbed.",
+            "Slice from the front to see the classic view: cortex, pyramids and the central sinus."] },
+  { slug: "stomach", name: "Stomach", latin: "Gaster", system: "Digestive system", weight: "holds about 1–1.5 L", where: "Upper left abdomen",
+    facts: ["Stomach acid has a pH of about 1.5 to 3.5.",
+            "Its lining replaces itself every few days to avoid digesting itself.",
+            "Slice it open to see the hollow inside and the folded lining (rugae)."] },
+  { slug: "intestines", name: "Intestines", latin: "Intestinum", system: "Digestive system", weight: "about 7–8 m long", where: "Abdomen",
+    facts: ["The small intestine is about 6 metres long and absorbs most nutrients.",
+            "The large intestine, about 1.5 metres, absorbs water and houses trillions of gut bacteria.",
+            "The colon frames the coiled small intestine on three sides."] },
+];
+
+const $ = (id) => document.getElementById(id);
+const stage = $("stage"), canvas = $("gl"), ui = $("ui");
+const status = (t) => { $("status").textContent = t || ""; $("status").hidden = !t; };
+
+/* ---------------- renderer & scene ---------------- */
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, stencil: true, preserveDrawingBuffer: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.localClippingEnabled = true;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.xr.enabled = true;
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+scene.environmentIntensity = 0.85;
+const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 50);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x445055, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+
+const root = new THREE.Group();     // placed in the world (AR) or at origin
+const turn = new THREE.Group();     // user rotation / scale
+const model = new THREE.Group();    // the organ, floor at y = 0
+root.add(turn); turn.add(model); scene.add(root);
+const ground = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.ShadowMaterial({ opacity: 0.22 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; turn.add(ground);
+const capsGroup = new THREE.Group(); scene.add(capsGroup);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.enablePan = false;
+
+/* cut-face grain texture */
+const grain = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const g = c.getContext("2d"), img = g.createImageData(256, 256);
+  for (let i = 0; i < 256 * 256; i++) {
+    const x = i % 256, y = (i / 256) | 0;
+    const v = 200 + 40 * Math.sin(x * 0.21 + Math.sin(y * 0.13) * 3) * Math.sin(y * 0.17) + (Math.random() - 0.5) * 50;
+    img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = Math.max(0, Math.min(255, v)); img.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(40, 40); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
+/* ---------------- state ---------------- */
+const S = {
+  organ: null, meta: null, parts: [], byId: {}, size: new THREE.Vector3(1, 1, 1), center: new THREE.Vector3(),
+  slice: false, axis: "z", flip: false, cut: 0.5, explode: 0, selected: null, isolated: false,
+  ar: false, placing: false, hitSource: null, loadToken: 0,
+};
+const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+const localPlane = new THREE.Plane();
+const cache = {};
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+
+/* ---------------- loading ---------------- */
+async function fetchOrgan(slug) {
+  if (cache[slug]) return cache[slug];
+  let gltf, meta, flow = null;
+  if (MODEL_MODE === "json") {
+    const res = await fetch(`data/${slug}.json`);
+    if (!res.ok) throw new Error(res.status);
+    const d = await res.json();
+    meta = d.meta; flow = d.flow || null;
+    const bin = atob(d.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    gltf = await loader.parseAsync(bytes.buffer, "");
+  } else {
+    const [m, g] = await Promise.all([fetch(`models/${slug}.json`).then(r => r.json()), loader.loadAsync(`models/${slug}.glb`)]);
+    meta = m; gltf = g;
+    try { flow = await fetch(`models/${slug}.flow.json`).then(r => r.ok ? r.json() : null); } catch (e) { flow = null; }
+  }
+  return (cache[slug] = { gltf, meta, flow });
+}
+
+function buildParts(gltf, meta) {
+  model.clear(); capsGroup.clear();
+  S.parts = []; S.byId = {};
+  const sceneRoot = gltf.scene;
+  sceneRoot.updateMatrixWorld(true);
+  const sorted = [...meta.parts].sort((a, b) => a.prio - b.prio);
+  sorted.forEach((pm, i) => {
+    const node = sceneRoot.getObjectByName(pm.id);
+    if (!node) return;
+    let mesh = null;
+    node.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
+    if (!mesh) return;
+    const group = new THREE.Group();
+    const geo = mesh.geometry;
+    const holder = new THREE.Group();                 // carries the node's (de)quantisation transform
+    holder.matrixAutoUpdate = false; holder.matrix.copy(mesh.matrixWorld);
+    group.add(holder);
+    const mat = mesh.material;
+    mat.clippingPlanes = [];
+    mat.side = THREE.FrontSide;
+    const vis = new THREE.Mesh(geo, mat);
+    vis.castShadow = true; vis.renderOrder = 1000; vis.userData.part = pm.id;
+    const stencilMat = (side, op) => new THREE.MeshBasicMaterial({
+      side, colorWrite: false, depthWrite: false, depthTest: false, stencilWrite: true,
+      stencilFunc: THREE.AlwaysStencilFunc, stencilFail: op, stencilZFail: op, stencilZPass: op, clippingPlanes: [plane] });
+    const back = new THREE.Mesh(geo, stencilMat(THREE.BackSide, THREE.IncrementWrapStencilOp));
+    const front = new THREE.Mesh(geo, stencilMat(THREE.FrontSide, THREE.DecrementWrapStencilOp));
+    back.renderOrder = i * 3 + 1; front.renderOrder = i * 3 + 2;
+    back.visible = front.visible = false;
+    holder.add(vis, back, front);
+    const capMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(pm.cap), map: grain, roughness: 0.75, metalness: 0, side: THREE.DoubleSide,
+      stencilWrite: true, stencilRef: 0, stencilFunc: THREE.NotEqualStencilFunc,
+      stencilFail: THREE.ReplaceStencilOp, stencilZFail: THREE.ReplaceStencilOp, stencilZPass: THREE.ReplaceStencilOp,
+      polygonOffset: true, polygonOffsetFactor: -1 - pm.prio, polygonOffsetUnits: -4 - pm.prio * 4 });
+    const cap = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), capMat);
+    cap.renderOrder = i * 3 + 3; cap.visible = false;
+    cap.onAfterRender = (r) => r.clearStencil();
+    capsGroup.add(cap);
+    model.add(group);
+    const p = { meta: pm, group, vis, back, front, cap, mat, hidden: false, baseEmissive: mat.emissive ? mat.emissive.clone() : null,
+                center: new THREE.Vector3(...pm.center), target: new THREE.Vector3(), offset: new THREE.Vector3(), fnScale: 1, fnPivot: null };
+    S.parts.push(p); S.byId[pm.id] = p;
+  });
+  S.size.set(...meta.size);
+  S.center.set(0, meta.size[1] / 2, 0);
+  ground.scale.setScalar(Math.max(meta.size[0], meta.size[2]) * 0.9);
+  const r = Math.max(...meta.size);
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -r; sun.shadow.camera.right = sun.shadow.camera.top = r;
+  sun.shadow.camera.near = 0.01; sun.shadow.camera.far = r * 8; sun.shadow.camera.updateProjectionMatrix();
+}
+
+async function show(slug, push) {
+  if (slug === "body") return showBody(push);
+  const o = ORGANS.find(x => x.slug === slug);
+  if (!o) return;
+  const token = ++S.loadToken;
+  S.organ = slug; S.mode = "organ";
+  setModeUI("organ");
+  document.querySelectorAll("#index button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.slug === slug)));
+  $("system").textContent = o.system; $("name").textContent = o.name; $("latin").textContent = o.latin;
+  $("weight").textContent = o.weight; $("where").textContent = o.where;
+  $("facts").innerHTML = o.facts.map(f => `<li>${f}</li>`).join("");
+  if (push) { try { history.replaceState(null, "", "#" + slug); } catch (e) {} }
+  status("Loading model…");
+  try {
+    const { gltf, meta } = await fetchOrgan(slug);
+    if (token !== S.loadToken) return;
+    const fnWasOn = F.on;
+    if (fnWasOn) setFunction(false);
+    buildParts(gltf, meta);
+    F.built = null;
+    S.meta = meta;
+    resetView(true);
+    if (fnWasOn) setFunction(true);
+    renderPartList();
+    model.add(H.marks);
+    if (H.on) { H.dis = null; H.seeOn = false; renderHealth(); }
+    const cm = (v) => (v * 100).toFixed(0);
+    const txt = `${cm(meta.size[0])} × ${cm(meta.size[1])} × ${cm(meta.size[2])} cm`;
+    $("size").textContent = txt; $("ruler").textContent = `Actual size · ${txt} · ${meta.parts.length} parts`;
+    status("");
+    splashReady();
+    if (Q.on) setQuiz(true);
+    if (S.ar) {
+      turn.scale.setScalar(1);
+      if (!S.anchored) { S.placing = true; root.visible = false; hint("Point at the floor or a table, then tap to place the organ."); }
+    }
+  } catch (e) {
+    if (token === S.loadToken) status("The model didn't load. Check your connection and reload the page.");
+  }
+}
+
+/* ---------------- view state ---------------- */
+function frameCamera() {
+  const r = Math.max(S.size.x, S.size.y, S.size.z);
+  const dist = r * 2.6;
+  camera.near = r / 50; camera.far = r * 40; camera.updateProjectionMatrix();
+  camera.position.set(0, S.center.y + r * 0.15, dist);
+  controls.target.copy(S.center);
+  controls.minDistance = r * 0.6; controls.maxDistance = r * 6;
+  controls.update();
+}
+function resetView(full) {
+  S.selected = null; S.isolated = false; S.explode = 0; S.slice = false; S.cut = 0.5; S.flip = false;
+  $("explodeRange").value = 0; $("sliceRange").value = 500;
+  if (typeof F !== "undefined" && F.on) setFunction(false);
+  S.parts.forEach(p => { p.hidden = false; p.offset.set(0, 0, 0); p.group.position.set(0, 0, 0); p.group.scale.setScalar(1); });
+  turn.rotation.set(0, 0, 0);
+  if (!S.ar) { turn.scale.setScalar(1); frameCamera(); }
+  setSlice(false); setPanel(null); $("partsBtn").setAttribute("aria-pressed", "false"); $("drawer").hidden = true;
+  applyVisibility(); updateCard();
+}
+function applyVisibility() {
+  for (const p of S.parts) {
+    const on = !p.hidden;
+    p.vis.visible = on;
+    p.back.visible = p.front.visible = on && S.slice;
+    p.cap.visible = on && S.slice;
+    if (p.mat.emissive) {
+      if (S.selected === p.meta.id) { p.mat.emissive.setRGB(0.10, 0.42, 0.38); p.mat.emissiveIntensity = 1; }
+      else p.mat.emissive.copy(p.baseEmissive || new THREE.Color(0));
+    }
+  }
+  document.querySelectorAll(".prow").forEach(r => {
+    const p = S.byId[r.dataset.id]; if (!p) return;
+    r.classList.toggle("off", p.hidden);
+    r.querySelector(".nm").setAttribute("aria-current", String(S.selected === p.meta.id));
+    r.querySelector(".eye").setAttribute("aria-label", (p.hidden ? "Show " : "Hide ") + p.meta.name);
+    r.querySelector(".eye").innerHTML = p.hidden ? EYE_OFF : EYE;
+  });
+  $("showAllBtn").hidden = !S.parts.some(p => p.hidden);
+}
+function setSlice(on) {
+  S.slice = on;
+  $("sliceBtn").setAttribute("aria-pressed", String(on));
+  for (const p of S.parts) {
+    p.mat.clippingPlanes = on ? [plane] : [];
+    p.mat.side = on ? THREE.DoubleSide : THREE.FrontSide;
+    p.mat.needsUpdate = true;
+  }
+  applyVisibility();
+}
+function setPanel(which) {
+  $("slicePanel").hidden = which !== "slice";
+  $("explodePanel").hidden = which !== "explode";
+  $("explodeBtn").setAttribute("aria-pressed", String(which === "explode" || S.explode > 0));
+  if (typeof F !== "undefined") $("fnPanel").hidden = !(F.on && !which && !(typeof H !== "undefined" && H.on));
+  if (typeof H !== "undefined") $("healthPanel").hidden = !(H.on && !which);
+  if (typeof Q !== "undefined") $("quizPanel").hidden = !(Q.on && !which);
+}
+
+/* ---------------- per-frame updates ---------------- */
+const AX = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+function updatePlane() {
+  const a = S.axis, half = S.size[a] / 2 * 1.04;
+  const mid = a === "y" ? S.size.y / 2 : 0;
+  const pos = mid - half + S.cut * 2 * half;
+  // keep the side away from the viewer (front cut), the left side (side cut) or the bottom (top cut)
+  const sign = S.flip ? 1 : -1;
+  const n = AX[a].clone().multiplyScalar(sign);
+  localPlane.set(n, -sign * pos);
+  model.updateMatrixWorld(true);
+  plane.copy(localPlane).applyMatrix4(model.matrixWorld);
+  const pt = plane.coplanarPoint(new THREE.Vector3());
+  const ws = Math.max(S.size.x, S.size.y, S.size.z) * 4 * turn.scale.x;
+  for (const p of S.parts) {
+    p.cap.position.copy(pt);
+    p.cap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), plane.normal.clone().negate());
+    p.cap.scale.set(ws, ws, 1);
+  }
+}
+function updateExplode() {
+  const k = S.explode, size = Math.max(S.size.x, S.size.y, S.size.z);
+  for (const p of S.parts) {
+    const ex = p.meta.explode;
+    if (ex) p.target.set(ex[0], ex[1], ex[2]).multiplyScalar(size * 0.35 * k);
+    else p.target.copy(p.center).sub(S.center).multiplyScalar(1.25 * k);
+    p.offset.lerp(p.target, 0.18);
+    const s = (p.fnScale || 1) * (p.hScale || 1), pv = p.fnPivot || p.center;
+    p.group.scale.setScalar(s);
+    p.group.position.copy(p.offset).addScaledVector(pv, 1 - s);
+  }
+}
+
+/* ---------------- picking ---------------- */
+const raycaster = new THREE.Raycaster();
+function pick(ray) {
+  raycaster.ray.copy(ray);
+  const objs = S.parts.filter(p => !p.hidden).map(p => p.vis);
+  const hits = raycaster.intersectObjects(objs, false);
+  for (const h of hits) {
+    if (S.slice && plane.distanceToPoint(h.point) < -1e-5) continue;
+    select(h.object.userData.part);
+    return;
+  }
+  select(null);
+}
+function select(id) {
+  if (typeof Q !== "undefined" && Q.on && id && Q.list[Q.i] && Q.list[Q.i].type === "find") { quizAnswer(id); return; }
+  S.selected = id;
+  applyVisibility(); updateCard();
+}
+function updateCard() {
+  const p = S.selected && S.byId[S.selected];
+  $("card").hidden = !p;
+  if (!p) return;
+  const m = p.meta;
+  $("cardGroup").innerHTML = `<span class="swatch" style="background:${m.cap}"></span>${m.group}`;
+  $("cardName").textContent = m.name;
+  $("cardInfo").textContent = m.info;
+  $("cardFact").textContent = m.fact;
+  $("cardFact").hidden = !m.fact;
+  $("hideBtn").textContent = p.hidden ? "Show" : "Hide";
+  $("isoBtn").textContent = S.isolated ? "Show all" : "Isolate";
+}
+function isolate() {
+  if (S.isolated) { S.parts.forEach(p => (p.hidden = false)); S.isolated = false; }
+  else if (S.selected) { S.parts.forEach(p => (p.hidden = p.meta.id !== S.selected)); S.isolated = true; }
+  applyVisibility(); updateCard();
+}
+function toggleHide(id) {
+  const p = S.byId[id]; if (!p) return;
+  p.hidden = !p.hidden; S.isolated = false;
+  applyVisibility(); updateCard();
+}
+function showAll() { S.parts.forEach(p => (p.hidden = false)); S.isolated = false; applyVisibility(); updateCard(); }
+
+/* ---------------- part list ---------------- */
+const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.7 10.7 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3 3.8M6.3 6.3A17.6 17.6 0 0 0 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.7-1.7"/></svg>';
+function renderPartList() {
+  const groups = [];
+  for (const pm of S.meta.parts) {
+    let g = groups.find(x => x.name === pm.group);
+    if (!g) groups.push(g = { name: pm.group, items: [] });
+    g.items.push(pm);
+  }
+  $("plist").innerHTML = groups.map(g => `<div class="g">${g.name}</div>` + g.items.map(pm =>
+    `<div class="prow" data-id="${pm.id}"><button type="button" class="nm"><span class="swatch" style="background:${pm.cap}"></span>${pm.name}</button><button type="button" class="eye" aria-label="Hide ${pm.name}">${EYE}</button></div>`).join("")).join("");
+  applyVisibility();
+}
+$("plist").addEventListener("click", (e) => {
+  const row = e.target.closest(".prow"); if (!row) return;
+  if (e.target.closest(".eye")) toggleHide(row.dataset.id);
+  else select(S.selected === row.dataset.id ? null : row.dataset.id);
+});
+
+/* ---------------- tools ---------------- */
+$("sliceBtn").addEventListener("click", () => {
+  const on = !S.slice; setSlice(on); setPanel(on ? "slice" : null);
+});
+$("explodeBtn").addEventListener("click", () => {
+  const open = $("explodePanel").hidden;
+  if (open && S.explode === 0) { S.explode = 0.6; $("explodeRange").value = 600; }
+  setPanel(open ? "explode" : null);
+});
+$("partsBtn").addEventListener("click", () => {
+  const open = $("drawer").hidden; $("drawer").hidden = !open; $("partsBtn").setAttribute("aria-pressed", String(open));
+  if (typeof F !== "undefined" && F.on) $("fnPanel").hidden = open || !$("slicePanel").hidden || !$("explodePanel").hidden;
+});
+$("resetBtn").addEventListener("click", () => {
+  if (S.mode === "body") { selectBodyOrgan(null); turn.rotation.set(0, 0, 0); if (!S.ar) frameBody(); }
+  else resetView(true);
+});
+$("sliceRange").addEventListener("input", (e) => { S.cut = e.target.value / 1000; });
+$("explodeRange").addEventListener("input", (e) => { S.explode = e.target.value / 1000; $("explodeBtn").setAttribute("aria-pressed", "true"); });
+$("flipBtn").addEventListener("click", () => { S.flip = !S.flip; });
+document.querySelectorAll("#slicePanel .seg button").forEach(b => b.addEventListener("click", () => {
+  S.axis = b.dataset.axis;
+  document.querySelectorAll("#slicePanel .seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+}));
+$("cardClose").addEventListener("click", () => select(null));
+$("isoBtn").addEventListener("click", isolate);
+$("hideBtn").addEventListener("click", () => { const id = S.selected; toggleHide(id); });
+$("showAllBtn").addEventListener("click", showAll);
+$("drawerShowAll").addEventListener("click", showAll);
+
+/* ---------------- page-mode pointer picking ---------------- */
+let down = null;
+canvas.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener("pointerup", (e) => {
+  if (!down || S.ar) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+  if (moved > 6) return;
+  const r = canvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  if (S.mode === "body") { if (!B.flying) pickBody(raycaster.ray.clone()); } else pick(raycaster.ray.clone());
+});
+
+/* ---------------- AR ---------------- */
+const reticle = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.075, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
+reticle.matrixAutoUpdate = false; reticle.visible = false; scene.add(reticle);
+const controller = renderer.xr.getController(0); scene.add(controller);
+let gesture = { moved: false, startX: 0, startDist: 0, startScale: 1, startRot: 0 };
+let xrSupported = false;
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const quickLook = (() => { try { return document.createElement("a").relList.supports("ar"); } catch (e) { return false; } })();
+
+function hint(t) { $("hint").textContent = t || ""; $("hint").hidden = !t; }
+
+async function checkXR() {
+  try { xrSupported = !!(navigator.xr && await navigator.xr.isSessionSupported("immersive-ar")); } catch (e) { xrSupported = false; }
+  if (!xrSupported && quickLook) {
+    $("arLabel").textContent = "AR (basic)";
+    $("arHow").innerHTML = "<b>View in AR</b> on iPhone opens Apple's AR viewer, which places the organ life-size but can't slice or pull it apart. Use those tools here in 3D, or open the app on an Android phone for full AR dissection.";
+  }
+}
+
+async function startAR() {
+  if (xrSupported) {
+    try {
+      const session = await navigator.xr.requestSession("immersive-ar", {
+        requiredFeatures: ["hit-test"], optionalFeatures: ["dom-overlay"], domOverlay: { root: ui } });
+      renderer.xr.setReferenceSpaceType("local");
+      await renderer.xr.setSession(session);
+      const viewer = await session.requestReferenceSpace("viewer");
+      S.hitSource = await session.requestHitTestSource({ space: viewer });
+      S.ar = true; S.placing = true; root.visible = false;
+      ui.classList.add("ar"); canvas.style.visibility = "hidden";
+      $("arBtn").hidden = true; $("exitBtn").hidden = false; $("moveBtn").hidden = false;
+      S.anchored = false;
+      turn.scale.setScalar(S.mode === "body" ? B.size : 1);
+      $("sizeBtn").hidden = S.mode !== "body"; $("sizeLabel").textContent = B.size < 0.5 ? "Life-size" : "Tabletop";
+      hint(S.mode === "body" ? "Point at the floor or a table, then tap to place the body." : "Point at the floor or a table, then tap to place the organ.");
+      session.addEventListener("end", endAR);
+      return;
+    } catch (e) {
+      hint("AR couldn't start here. Open the app's public link in Chrome on an Android phone."); setTimeout(() => hint(""), 4000);
+      return;
+    }
+  }
+  if (quickLook) return openQuickLook();
+  if (/Android/i.test(navigator.userAgent) && MODEL_MODE === "glb") {
+    const file = new URL(`models/${S.organ}.glb`, location.href).href;
+    location.href = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(file)}&mode=ar_preferred#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(location.href)};end;`;
+    return;
+  }
+  hint(/Android|iPhone|iPad/i.test(navigator.userAgent)
+    ? "AR isn't available in this view. Open the app's public link in Chrome (Android) or Safari (iPhone)."
+    : "AR needs a phone. Scan one of the QR codes below with your phone's camera.");
+  setTimeout(() => hint(""), 4500);
+}
+function endAR() {
+  S.ar = false; S.placing = false; S.hitSource = null; reticle.visible = false;
+  ui.classList.remove("ar"); canvas.style.visibility = "";
+  $("arBtn").hidden = false; $("exitBtn").hidden = true; $("moveBtn").hidden = true;
+  root.visible = true; root.position.set(0, 0, 0); root.rotation.set(0, 0, 0);
+  turn.scale.setScalar(1); turn.rotation.set(0, 0, 0);
+  $("sizeBtn").hidden = true;
+  hint(""); onResize(); if (S.mode === "body") frameBody(); else frameCamera();
+}
+async function openQuickLook() {
+  hint("Preparing AR model…");
+  try {
+    const wasSlice = S.slice; if (wasSlice) setSlice(false);
+    const skin = S.mode === "body" && B.obj ? B.obj.skin.holder : null;
+    if (skin) skin.visible = false;          // the glowing skin is a custom effect Quick Look can't show
+    const arr = await new USDZExporter().parseAsync(model);
+    if (skin) skin.visible = true;
+    if (wasSlice) setSlice(true);
+    const url = URL.createObjectURL(new Blob([arr], { type: "model/vnd.usdz+zip" }));
+    const a = document.createElement("a"); a.rel = "ar"; a.href = url;
+    a.appendChild(document.createElement("img")); a.click();
+    hint("");
+  } catch (e) { hint("Couldn't prepare the AR model on this device."); setTimeout(() => hint(""), 3500); }
+}
+$("arBtn").addEventListener("click", startAR);
+$("exitBtn").addEventListener("click", () => renderer.xr.getSession()?.end());
+$("moveBtn").addEventListener("click", () => { S.placing = true; S.anchored = false; root.visible = false; hint("Point at a surface and tap to place the organ again."); });
+
+/* taps on the panels are UI, not AR selections */
+ui.querySelectorAll(".glass").forEach(el => el.addEventListener("beforexrselect", (e) => e.preventDefault()));
+
+controller.addEventListener("select", () => {
+  if (!S.ar || gesture.moved) return;
+  if (S.placing) {
+    if (!reticle.visible) return;
+    root.position.setFromMatrixPosition(reticle.matrix);
+    const cam = renderer.xr.getCamera().position;
+    root.rotation.set(0, Math.atan2(cam.x - root.position.x, cam.z - root.position.z), 0);
+    root.visible = true; S.placing = false; reticle.visible = false; S.anchored = true;
+    GROW.t0 = performance.now();
+    if (S.mode === "organ" && FN[S.organ] && !F.on && !S.autoFnDone) { S.autoFnDone = true; setTimeout(() => setFunction(true), 800); }
+    hint("Tap a part to study it. Drag to turn, pinch to resize."); setTimeout(() => { if (!S.placing) hint(""); }, 3500);
+    return;
+  }
+  const m = new THREE.Matrix4().extractRotation(controller.matrixWorld);
+  const ray = new THREE.Ray(new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld), new THREE.Vector3(0, 0, -1).applyMatrix4(m));
+  if (S.mode === "body") pickBody(ray); else pick(ray);
+});
+
+/* one finger turns, two fingers resize (AR) */
+ui.addEventListener("touchstart", (e) => {
+  if (!S.ar || e.target.closest(".glass")) return;
+  gesture.moved = false;
+  if (e.touches.length === 1) { gesture.startX = e.touches[0].clientX; gesture.startRot = turn.rotation.y; }
+  if (e.touches.length === 2) {
+    gesture.startDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    gesture.startScale = turn.scale.x;
+  }
+}, { passive: true });
+ui.addEventListener("touchmove", (e) => {
+  if (!S.ar || e.target.closest(".glass")) return;
+  if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - gesture.startX;
+    if (Math.abs(dx) > 8) gesture.moved = true;
+    turn.rotation.y = gesture.startRot + dx * 0.012;
+  } else if (e.touches.length === 2 && gesture.startDist) {
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    gesture.moved = true;
+    turn.scale.setScalar(THREE.MathUtils.clamp(gesture.startScale * d / gesture.startDist, 0.4, 5));
+  }
+}, { passive: true });
+ui.addEventListener("touchend", (e) => { if (e.touches.length === 0) setTimeout(() => (gesture.moved = false), 350); }, { passive: true });
+
+/* ---------------- render loop ---------------- */
+function onResize() {
+  if (S.ar) return;
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
+}
+new ResizeObserver(onResize).observe(stage);
+
+renderer.setAnimationLoop((t, frame) => {
+  if (S.ar && frame && S.placing && S.hitSource) {
+    const hits = frame.getHitTestResults(S.hitSource);
+    if (hits.length) {
+      const pose = hits[0].getPose(renderer.xr.getReferenceSpace());
+      reticle.matrix.fromArray(pose.transform.matrix); reticle.visible = true;
+    } else reticle.visible = false;
+  }
+  if (!S.ar) controls.update();
+  const now = performance.now(), dt = Math.min(0.05, (now - (window.__lastT || now)) / 1000); window.__lastT = now;
+  growUpdate();
+  fnUpdate(dt);
+  healthUpdate();
+  bodyUpdate(dt);
+  updateViewOffset();
+  updateExplode();
+  if (S.slice) updatePlane();
+  // light follows the organ so its shadow stays put
+  const wp = root.getWorldPosition(new THREE.Vector3());
+  const r = Math.max(S.size.x, S.size.y, S.size.z) * turn.scale.x;
+  sun.position.set(wp.x + r * 1.2, wp.y + r * 3, wp.z + r * 1.6); sun.target.position.copy(wp);
+  renderer.render(scene, camera);
+});
+
+/* ================================================================
+   HOW IT WORKS: organ function animations, flows and sounds
+   ================================================================ */
+const KIND = {
+  blood_low:      { color: 0x3b5bdb, size: 1.0 },
+  blood_high:     { color: 0xe03131, size: 1.0 },
+  blood_exchange: { color: 0x3b5bdb, to: 0xe03131, size: 1.0 },
+  portal:         { color: 0x7048e8, size: 1.0 },
+  bile:           { color: 0x2f9e44, size: 1.0 },
+  urine:          { color: 0xf2c200, size: 1.0 },
+  air:            { color: 0x8fd3ff, size: 0.8 },
+  food:           { color: 0xd8b26a, size: 1.0 },
+  stool:          { color: 0x8a6436, size: 1.0 },
+  nerve:          { color: 0xffd43b, size: 2.6, glow: true },
+  csf:            { color: 0x74c0fc, size: 0.8 },
+};
+
+const smooth01 = (x) => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
+const bump = (x, a, b) => (x < a || x > b) ? 0 : Math.sin(Math.PI * (x - a) / (b - a));
+
+/* Heart cycle at phase p in [0,1): atria squeeze 0–0.12, ventricles squeeze 0.13–0.45 (semilunar valves open 0.16–0.43). */
+function heartState(p) {
+  const atria = bump(p, 0.0, 0.14);
+  const vent = p < 0.13 ? 0 : p < 0.30 ? smooth01((p - 0.13) / 0.17) : p < 0.40 ? 1 : p < 0.56 ? 1 - smooth01((p - 0.40) / 0.16) : 0;
+  return { atria, vent, avOpen: (p > 0.52 || p < 0.13) ? 1 : 0, slOpen: (p > 0.16 && p < 0.43) ? 1 : 0 };
+}
+
+const FN = {
+  heart: {
+    clock: "beat", sound: "heart",
+    soundNote: "Heartbeat: the 'lub' is the mitral and tricuspid valves closing, the 'dub' is the aortic and pulmonary valves closing.",
+    stageSpeed(stage, st) {
+      if (stage === "vein") return 0.55 + 0.25 * st.atria;
+      if (stage === "fill") return st.avOpen ? 0.9 + 1.6 * st.atria : 0.04;
+      if (stage === "eject") return st.slOpen ? 2.6 : 0.03;
+      if (stage === "coronary") return 0.5 + 0.8 * (1 - st.vent);   // coronaries fill mostly while the heart relaxes
+      return 1;
+    },
+    motion(st, P) {
+      const w = healthWeak(), v = 1 - 0.085 * st.vent * w, a = 1 - 0.07 * st.atria * w;
+      for (const id of ["lv", "rv", "septum", "papillary", "mitral", "tricuspid", "rca", "lca", "cardiac_veins"]) P(id, v, "vent");
+      P("la", a); P("ra", a);
+      P("aorta", 1 + 0.025 * st.slOpen * (1 - Math.abs(st.vent - 0.7)));
+      P("pulmonary_a", 1 + 0.025 * st.slOpen * (1 - Math.abs(st.vent - 0.7)));
+    },
+    valves(st) { return { mitral: st.avOpen, tricuspid: st.avOpen, aortic_v: st.slOpen, pulmonary_v: st.slOpen }; },
+    steps: [
+      { t: "One heartbeat", d: "Both sides of the heart work at the same time. The atria squeeze first, then the ventricles. At 72 beats a minute each beat takes about 0.8 seconds. Blue is oxygen-poor blood, red is oxygen-rich." },
+      { t: "Blood returns from the body", d: "Oxygen-poor blood comes back through the superior and inferior venae cavae into the right atrium.", focus: ["svc", "ivc", "ra"], flows: ["right_"] },
+      { t: "Right atrium to right ventricle", d: "The tricuspid valve is open while the heart relaxes. When the atria squeeze, they top up the right ventricle.", focus: ["ra", "tricuspid", "rv"], flows: ["right_"] },
+      { t: "Pumped to the lungs", d: "The right ventricle contracts. The tricuspid valve snaps shut (the 'lub') and blood is pushed through the pulmonary valve into the pulmonary arteries, toward the lungs.", focus: ["rv", "pulmonary_v", "pulmonary_a"], flows: ["right_"] },
+      { t: "Back from the lungs", d: "Now full of oxygen, blood returns through the four pulmonary veins into the left atrium.", focus: ["pulmonary_vs", "la"], flows: ["left_"] },
+      { t: "Left atrium to left ventricle", d: "Blood flows through the open mitral valve into the left ventricle, the strongest chamber.", focus: ["la", "mitral", "lv"], flows: ["left_"] },
+      { t: "Pumped to the whole body", d: "The left ventricle squeezes hard and blood surges through the aortic valve into the aorta. As the ventricles relax, the aortic and pulmonary valves close: the 'dub'.", focus: ["lv", "aortic_v", "aorta"], flows: ["left_"] },
+      { t: "Feeding the heart muscle", d: "The coronary arteries branch off the aorta just above the aortic valve. They fill mostly while the heart relaxes, bringing oxygen to the heart muscle itself.", focus: ["rca", "lca"], flows: ["rca_", "lca_"] },
+    ],
+  },
+  lungs: {
+    clock: "breath", sound: "breath",
+    soundNote: "Breath sounds, as heard through a stethoscope: a soft rush on the way in, quieter on the way out.",
+    stageSpeed(stage, st) {
+      if (stage === "air") return st.flow * 2.2;           // forward when breathing in, backward when breathing out
+      if (stage === "exchange") return 0.45;
+      return 0.8;
+    },
+    motion(st, P) {
+      const s = 1 + 0.045 * st.volume;
+      for (const id of ["rul", "rml", "rll", "lul", "lll"]) P(id, s, "lung");
+      P("bronchial_tree", 1 + 0.02 * st.volume, "lung");
+    },
+    steps: [
+      { t: "Breathing in and out", d: "The diaphragm pulls down and the ribs lift, so the lungs expand and draw air in. When the muscles relax, the lungs spring back and push air out. At rest you take 12 to 20 breaths a minute." },
+      { t: "Air travels in", d: "Air flows down the trachea, splits into the two main bronchi and keeps branching, about 23 times, until it reaches tiny air sacs called alveoli.", focus: ["trachea", "main_bronchi", "bronchial_tree"], flows: ["air_"] },
+      { t: "Blood arrives from the heart", d: "The pulmonary arteries bring oxygen-poor blood (blue) from the right ventricle and branch alongside the airways.", focus: ["pulm_art"], flows: ["pa_"] },
+      { t: "Gas exchange", d: "Around 480 million alveoli are wrapped in capillaries. Oxygen passes into the blood and carbon dioxide passes out to be breathed away. Watch the blue blood turn red.", focus: ["rul", "rml", "rll", "lul", "lll"], flows: ["pa_"] },
+      { t: "Blood returns to the heart", d: "Oxygen-rich blood (red) leaves through the pulmonary veins and flows to the left atrium of the heart.", focus: ["pulm_vein"], flows: ["pv_"] },
+    ],
+  },
+  brain: {
+    clock: "free", sound: null,
+    see: (id) => /^(frontal|parietal|temporal|occipital|limbic|insula|white|cerebellum)/.test(id) ? 0.07 : 0.45,
+    soundNote: "The brain makes no sound you can hear. Its signals are tiny electrical pulses, shown here as moving lights.",
+    stageSpeed(stage) { return stage === "csf" ? 0.25 : 1.6; },
+    steps: [
+      { t: "Signals everywhere", d: "Your brain works by sending electrical signals along nerve fibres at up to 120 metres a second. Each light here traces one real pathway. The blue particles are cerebrospinal fluid." },
+      { t: "Seeing", d: "Signals from the eyes travel along the optic nerves. At the optic chiasm half the fibres cross over, then they relay in the thalamus and reach the visual cortex in the occipital lobes at the back.", focus: ["optic", "thalamus", "occipital_l", "occipital_r"], flows: ["vision_"] },
+      { t: "Moving", d: "The motor cortex at the back of each frontal lobe sends commands down through the white matter and brainstem to the spinal cord. The fibres cross in the medulla, so each side of the brain moves the opposite side of the body.", focus: ["frontal_l", "frontal_r", "midbrain", "pons", "medulla"], flows: ["motor_"] },
+      { t: "Feeling touch", d: "Touch signals rise from the spinal cord through the brainstem to the thalamus, which relays them to the touch area at the front of each parietal lobe.", focus: ["thalamus", "parietal_l", "parietal_r"], flows: ["touch_"] },
+      { t: "Making memories", d: "Memories form as signals loop from the hippocampus through the fornix to the hypothalamus and thalamus, and back via the cingulate gyrus. This loop is called the Papez circuit.", focus: ["hippocampus", "callosum", "hypothalamus", "thalamus", "limbic_l", "limbic_r"], flows: ["memory"] },
+      { t: "Brain fluid", d: "Cerebrospinal fluid is made inside the ventricles. It flows from the two lateral ventricles to the third and fourth, then out around the brain and spinal cord, cushioning them.", focus: ["ventricles"], flows: ["csf_"] },
+    ],
+  },
+  liver: {
+    clock: "free", sound: null,
+    soundNote: "The liver works silently. Its blood flow can only be heard with a Doppler ultrasound probe.",
+    stageSpeed() { return 0.7; },
+    steps: [
+      { t: "Two blood supplies", d: "The liver is the only organ fed by two blood vessels: the portal vein from the gut and the hepatic artery from the heart. About 1.5 litres of blood flows through it every minute." },
+      { t: "Portal vein: blood from the gut", d: "Nutrient-rich blood (purple) from the intestines and spleen enters through the portal vein and branches to every segment. It supplies about 75% of the liver's blood.", focus: ["portal"], flows: ["portal_"] },
+      { t: "Hepatic artery: oxygen", d: "Oxygen-rich blood (red) from the aorta arrives through the hepatic artery, about 25% of the flow.", focus: ["hep_artery"], flows: ["artery_"] },
+      { t: "Cleaning and processing", d: "Liver cells take up nutrients, store sugar as glycogen and break down toxins and drugs. The processed blood leaves through the hepatic veins into the inferior vena cava, on its way to the heart.", focus: ["hep_veins", "ivc"], flows: ["hv_", "ivc"] },
+      { t: "Making bile", d: "Liver cells make bile (green), which drains through the bile ducts. It is stored in the gallbladder and released into the duodenum to help digest fat.", focus: ["bile", "gallbladder"], flows: ["bile_"] },
+    ],
+  },
+  kidneys: {
+    clock: "beat", sound: null,
+    soundNote: "The kidneys work silently. Doctors can listen for a whooshing 'bruit' over a narrowed renal artery, but healthy kidneys make no sound.",
+    stageSpeed(stage, st) {
+      if (stage === "aorta" || stage === "artery") return 0.7 + 1.0 * st.vent;
+      if (stage === "urine") return 0.35;
+      return 0.6;
+    },
+    steps: [
+      { t: "Cleaning the blood", d: "The two kidneys receive about a fifth of all the blood the heart pumps, roughly 1.2 litres a minute, and clean all of it many times a day." },
+      { t: "Blood comes in", d: "The renal arteries branch straight off the aorta and carry blood into each kidney.", focus: ["aorta", "renal_art"], flows: ["aorta", "art_"] },
+      { t: "Filtering", d: "In the cortex, about a million nephrons per kidney filter the blood: around 180 litres of fluid a day. The tubules then take back almost all the water, salt and nutrients.", focus: ["cortex_l", "cortex_r"], flows: ["art_", "vein_"] },
+      { t: "Clean blood leaves", d: "Filtered blood returns through the renal veins into the inferior vena cava.", focus: ["renal_vein", "ivc"], flows: ["vein_", "ivc"] },
+      { t: "Making urine", d: "What isn't taken back becomes urine (yellow). It runs through the pyramids, drips from the papillae into the renal pelvis in the sinus, and flows down the ureter to the bladder: about 1 to 2 litres a day.", focus: ["pyramid_l", "pyramid_r", "papilla_l", "papilla_r", "hilum_l", "hilum_r"], flows: ["urine_"] },
+    ],
+  },
+  stomach: {
+    clock: "free", sound: "gut",
+    soundNote: "Stomach rumbles (borborygmi): gas and liquid pushed along by the muscle waves.",
+    waves: { amp: 0.0028, lambda: 0.07, speed: 0.022, parts: ["esophagus", "cardia", "fundus", "body", "antrum", "pylorus", "duodenum", "mucosa"], skip: ["fundus"] },
+    stageSpeed() { return 0.32; },
+    steps: [
+      { t: "Swallowing", d: "Waves of muscle squeeze food down the oesophagus in about 8 seconds. The muscle ring at the bottom opens to let it into the stomach.", focus: ["esophagus", "cardia"] },
+      { t: "Storing and mixing", d: "The fundus and body relax to hold a meal of over a litre. Glands in the lining add acid and enzymes that start breaking down protein.", focus: ["fundus", "body", "mucosa"] },
+      { t: "Churning", d: "About three times a minute a wave of contraction sweeps from the body toward the pylorus, grinding food into a soupy mix called chyme. Here the waves are sped up.", focus: ["body", "antrum"] },
+      { t: "Emptying", d: "The pylorus lets small squirts of chyme into the duodenum, where bile and pancreatic juice join it. A meal takes 2 to 4 hours to leave the stomach.", focus: ["pylorus", "duodenum"] },
+    ],
+  },
+  intestines: {
+    clock: "free", sound: "gut",
+    soundNote: "Bowel sounds: the gurgles doctors listen for, made by gas and fluid moving through the intestines.",
+    waves: { amp: 0.0018, lambda: 0.045, speed: 0.03, parts: ["jejunum", "ileum", "appendix", "ascending", "transverse", "descending", "rectum"] },
+    stageSpeed(stage) { return stage === "colon" ? 0.35 : 0.6; },
+    steps: [
+      { t: "The journey", d: "Food spends about 3 to 5 hours in the small intestine and up to 1 or 2 days in the large intestine. Muscle waves called peristalsis push it along. The animation is sped up." },
+      { t: "Absorbing nutrients", d: "In the jejunum and ileum, waves mix the chyme with digestive juices while millions of tiny villi absorb sugars, amino acids, fats and vitamins into the blood.", focus: ["jejunum", "ileum"], flows: ["chyme_small"] },
+      { t: "Into the large intestine", d: "The ileocaecal valve lets what's left into the caecum, the pouch at the start of the colon. The appendix hangs from it.", focus: ["ileum", "ascending", "appendix"] },
+      { t: "Absorbing water", d: "The colon moves its contents slowly, up the right side, across and down the left, absorbing water and salts. Trillions of bacteria ferment fibre here.", focus: ["ascending", "transverse", "descending", "taeniae"], flows: ["chyme_colon"] },
+      { t: "Storing stool", d: "The rectum stores stool until it's passed. Stretch sensors in its wall create the urge to go.", focus: ["rectum"], flows: ["chyme_colon"] },
+    ],
+  },
+};
+
+const F = { on: false, playing: true, t: 0, speed: 1, bpm: 72, sound: false, step: 0, see: true, built: null,
+            flows: [], meshes: [], waves: null, lastPhase: 0, audio: null, gurgleAt: 0, autoNext: 0 };
+const fnGroup = new THREE.Group();
+const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _c = new THREE.Color();
+
+/* ---------------- particle flows ---------------- */
+function buildFlows(slug) {
+  clearFlows();
+  const data = cache[slug] && cache[slug].flow;
+  if (!data) return;
+  const sz = Math.max(S.size.x, S.size.y, S.size.z);
+  const byKind = {};
+  for (const f of data.flows) {
+    const n = f.pts.length, pts = new Float32Array(n * 3), L = new Float32Array(n);
+    for (let i = 0; i < n; i++) { pts[i * 3] = f.pts[i][0]; pts[i * 3 + 1] = f.pts[i][1]; pts[i * 3 + 2] = f.pts[i][2]; }
+    for (let i = 1; i < n; i++) L[i] = L[i - 1] + Math.hypot(pts[i * 3] - pts[i * 3 - 3], pts[i * 3 + 1] - pts[i * 3 - 2], pts[i * 3 + 2] - pts[i * 3 - 1]);
+    // colour ramp for gas exchange (blue -> red across the exchange stage)
+    let ramp = null;
+    if (f.kind === "blood_exchange" && f.stageNames) {
+      const ex = f.stageNames.indexOf("exchange");
+      let first = f.stages.indexOf(ex); if (first < 0) first = n;
+      ramp = new Float32Array(n);
+      for (let i = 0; i < n; i++) ramp[i] = i < first ? 0 : smooth01((i - first) / Math.max(1, n - 1 - first));
+    }
+    const count = f.kind === "nerve" ? 10 : Math.min(Math.round(f.count * 1.6), 150);
+    const rad = new Float32Array(n); for (let i = 0; i < n; i++) rad[i] = f.rad ? f.rad[i] : 0.004;
+    const flow = { id: f.id, kind: f.kind, pts, L, len: L[n - 1], n, stages: f.stages, names: f.stageNames, ramp, rad,
+                   speed: f.speed || 1, size: f.size || 1, count, u: new Float32Array(count), seg: new Int32Array(count),
+                   off: new Float32Array(count * 3), visible: true, base: 0 };
+    const spread = f.kind === "nerve" ? 0.12 : f.kind === "air" ? 0.55 : 0.72;
+    for (let k = 0; k < count; k++) {
+      flow.u[k] = (k + Math.random() * 0.6) / count * flow.len;
+      flow.seg[k] = 0;
+      const a = Math.random() * Math.PI * 2, b = Math.acos(2 * Math.random() - 1), r = spread * Math.sqrt(Math.random());
+      flow.off[k * 3] = r * Math.sin(b) * Math.cos(a); flow.off[k * 3 + 1] = r * Math.cos(b); flow.off[k * 3 + 2] = r * Math.sin(b) * Math.sin(a);
+    }
+    (byKind[f.kind] = byKind[f.kind] || []).push(flow);
+    F.flows.push(flow);
+  }
+  for (const [kind, flows] of Object.entries(byKind)) {
+    const K = KIND[kind] || KIND.blood_high;
+    const total = flows.reduce((s, f) => s + f.count, 0);
+    const r = 0.00125 * K.size * Math.max(0.8, Math.min(1.4, sz / 0.18));
+    const geo = new THREE.IcosahedronGeometry(r, 1);
+    const mat = K.glow
+      ? new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+      : new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0, emissive: new THREE.Color(K.color), emissiveIntensity: 0.35 });
+    const im = new THREE.InstancedMesh(geo, mat, total);
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    im.frustumCulled = false; im.renderOrder = 900;
+    let base = 0;
+    for (const f of flows) {
+      f.base = base; f.mesh = im;
+      for (let k = 0; k < f.count; k++) im.setColorAt(base + k, _c.setHex(K.color));
+      base += f.count;
+    }
+    im.userData.kind = kind;
+    fnGroup.add(im); F.meshes.push(im);
+  }
+  model.add(fnGroup);
+  F.built = slug;
+}
+function clearFlows() {
+  for (const m of F.meshes) { m.geometry.dispose(); m.material.dispose(); }
+  fnGroup.clear(); F.meshes = []; F.flows = []; F.built = null;
+  if (fnGroup.parent) fnGroup.parent.remove(fnGroup);
+}
+function flowVisible(f) {
+  const step = FN[S.organ] && FN[S.organ].steps[F.step];
+  if (!step || !step.flows) return true;
+  return step.flows.some(pfx => f.id.startsWith(pfx));
+}
+function updateFlows(dt, st) {
+  const spec = FN[S.organ];
+  const hidden = S.explode > 0.02;
+  for (const m of F.meshes) {
+    m.visible = !hidden;
+    m.material.clippingPlanes = S.slice ? [plane] : [];
+  }
+  if (hidden) return;
+  const K = (k) => KIND[k] || KIND.blood_high;
+  for (const f of F.flows) {
+    const vis = flowVisible(f);
+    const kc = K(f.kind);
+    const v0 = 0.028 * f.speed;                 // metres per second at speed 1
+    for (let k = 0; k < f.count; k++) {
+      let u = f.u[k], i = f.seg[k];
+      // find segment
+      while (i < f.n - 2 && f.L[i + 1] < u) i++;
+      while (i > 0 && f.L[i] > u) i--;
+      const stage = f.names ? f.names[f.stages[i]] : null;
+      const sp = (spec.stageSpeed ? spec.stageSpeed(stage, st) : 1) * healthFlowMul(f.id);
+      u += v0 * sp * dt * (F.playing ? 1 : 0);
+      if (u > f.len) { u -= f.len; i = 0; }
+      if (u < 0) { u += f.len; i = f.n - 2; }
+      f.u[k] = u; f.seg[k] = i;
+      const a = i * 3, seg = Math.max(1e-6, f.L[i + 1] - f.L[i]), w = Math.min(1, Math.max(0, (u - f.L[i]) / seg));
+      const rr = f.rad[i] + (f.rad[i + 1] - f.rad[i]) * w;
+      _v.set(f.pts[a] + (f.pts[a + 3] - f.pts[a]) * w + f.off[k * 3] * rr,
+             f.pts[a + 1] + (f.pts[a + 4] - f.pts[a + 1]) * w + f.off[k * 3 + 1] * rr,
+             f.pts[a + 2] + (f.pts[a + 5] - f.pts[a + 2]) * w + f.off[k * 3 + 2] * rr);
+      const fade = Math.min(1, u / 0.006, (f.len - u) / 0.006);
+      const s = vis ? Math.max(0.05, fade) * f.size * (f.kind === "nerve" ? 1 + 0.5 * Math.sin(F.t * 18 + k) : 1) : 0.0001;
+      _m.makeScale(s, s, s).setPosition(_v);
+      f.mesh.setMatrixAt(f.base + k, _m);
+      if (f.ramp) { _c.setHex(kc.color).lerp(new THREE.Color(kc.to), f.ramp[i]); f.mesh.setColorAt(f.base + k, _c); }
+    }
+  }
+  for (const m of F.meshes) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+}
+
+/* ---------------- peristalsis (vertex waves along the gut) ---------------- */
+function setupWaves(slug) {
+  const spec = FN[slug], data = cache[slug] && cache[slug].flow;
+  F.waves = null;
+  if (!spec || !spec.waves || !data || !data.axis) return;
+  const ax = data.axis, n = ax.length, S_ = new Float32Array(n);
+  for (let i = 1; i < n; i++) S_[i] = S_[i - 1] + Math.hypot(ax[i][0] - ax[i - 1][0], ax[i][1] - ax[i - 1][1], ax[i][2] - ax[i - 1][2]);
+  // spatial hash of axis points (2 cm cells)
+  const cell = 0.02, hash = new Map(), key = (x, y, z) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
+  ax.forEach((p, i) => { const k = key(p[0], p[1], p[2]); (hash.get(k) || hash.set(k, []).get(k)).push(i); });
+  const nearestS = (x, y, z) => {
+    let best = 1e9, bi = 0;
+    for (let r = 1; r <= 4 && best > 1e8; r++) {
+      const cx = Math.floor(x / cell), cy = Math.floor(y / cell), cz = Math.floor(z / cell);
+      for (let dx = -r; dx <= r; dx++) for (let dy = -r; dy <= r; dy++) for (let dz = -r; dz <= r; dz++) {
+        const list = hash.get(`${cx + dx},${cy + dy},${cz + dz}`); if (!list) continue;
+        for (const i of list) { const d = (ax[i][0] - x) ** 2 + (ax[i][1] - y) ** 2 + (ax[i][2] - z) ** 2; if (d < best) { best = d; bi = i; } }
+      }
+    }
+    return S_[bi];
+  };
+  const uniforms = { uT: { value: 0 } };
+  F.waveOn = F.waveOn || { value: 0 };
+  const W = spec.waves;
+  for (const id of W.parts) {
+    const p = S.byId[id]; if (!p) continue;
+    const geo = p.vis.geometry, pos = geo.attributes.position, holder = p.vis.parent;
+    const sArr = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      _v.set(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(holder.matrix);
+      sArr[i] = nearestS(_v.x, _v.y, _v.z);
+    }
+    geo.setAttribute("aS", new THREE.BufferAttribute(sArr, 1));
+    const scale = new THREE.Vector3().setFromMatrixScale(holder.matrix).x || 1;
+    const amp = (W.skip && W.skip.includes(id)) ? 0 : W.amp / scale;
+    p.mat.userData.wave = { amp };
+    p.mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uT = uniforms.uT;
+      sh.uniforms.uAmp = { value: amp };
+      sh.uniforms.uOn = F.waveOn;
+      sh.vertexShader = "attribute float aS;\nuniform float uT;\nuniform float uAmp;\nuniform float uOn;\n" +
+        sh.vertexShader.replace("#include <begin_vertex>",
+          `#include <begin_vertex>
+           float ph = fract(aS / ${W.lambda.toFixed(4)} - uT * ${(W.speed / W.lambda).toFixed(4)});
+           float wv = exp(-pow((ph - 0.5) * 5.0, 2.0));
+           transformed -= objectNormal * uAmp * uOn * wv;`);
+    };
+    p.mat.customProgramCacheKey = () => "wave-" + id;
+    p.mat.needsUpdate = true;
+  }
+  F.waves = uniforms;
+}
+
+/* ---------------- sound (synthesised with Web Audio) ---------------- */
+function audioCtx() {
+  if (F.audio) return F.audio;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  const ctx = new AC(), master = ctx.createGain();
+  master.gain.value = 0.9; master.connect(ctx.destination);
+  // short room tone
+  const conv = ctx.createConvolver(), len = ctx.sampleRate * 0.35, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+  conv.buffer = ir; const wet = ctx.createGain(); wet.gain.value = 0.18; conv.connect(wet); wet.connect(master);
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  { const d = noiseBuf.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { b = 0.97 * b + 0.03 * (Math.random() * 2 - 1); d[i] = b * 6; } }
+  F.audio = { ctx, master, conv, noiseBuf, breath: null };
+  return F.audio;
+}
+function thump(freq0, freq1, dur, gain) {
+  const A = audioCtx(); if (!A) return;
+  const { ctx } = A, t = ctx.currentTime + 0.01;
+  const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+  o.type = "sine"; o.frequency.setValueAtTime(freq0, t); o.frequency.exponentialRampToValueAtTime(freq1, t + dur);
+  lp.type = "lowpass"; lp.frequency.value = 180;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(lp); lp.connect(g); g.connect(A.master); g.connect(A.conv);
+  o.start(t); o.stop(t + dur + 0.05);
+  const n = ctx.createBufferSource(), ng = ctx.createGain(), nf = ctx.createBiquadFilter();
+  n.buffer = A.noiseBuf; nf.type = "lowpass"; nf.frequency.value = 120;
+  ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(gain * 0.5, t + 0.01); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.7);
+  n.connect(nf); nf.connect(ng); ng.connect(A.master);
+  n.start(t, Math.random()); n.stop(t + dur);
+}
+function lub() { thump(62, 38, 0.16, 0.9); }
+function dub() { thump(88, 52, 0.11, 0.65); }
+function breathSound(flow) {
+  const A = audioCtx(); if (!A) return;
+  const { ctx } = A;
+  if (!A.breath) {
+    const n = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+    n.buffer = A.noiseBuf; n.loop = true; bp.type = "bandpass"; bp.Q.value = 0.6; bp.frequency.value = 700; g.gain.value = 0;
+    n.connect(bp); bp.connect(g); g.connect(A.master); n.start();
+    A.breath = { n, bp, g };
+  }
+  const t = ctx.currentTime, inh = flow > 0;
+  A.breath.g.gain.setTargetAtTime(F.sound && F.playing ? Math.abs(flow) * (inh ? 0.22 : 0.12) : 0, t, 0.05);
+  A.breath.bp.frequency.setTargetAtTime(inh ? 900 : 520, t, 0.1);
+}
+function gurgle() {
+  const A = audioCtx(); if (!A) return;
+  const { ctx } = A, t = ctx.currentTime + 0.02, dur = 0.35 + Math.random() * 0.9;
+  const o = ctx.createOscillator(), lfo = ctx.createOscillator(), lg = ctx.createGain(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+  const f0 = 110 + Math.random() * 120;
+  o.type = "triangle"; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * (1.6 + Math.random()), t + dur);
+  lfo.frequency.value = 9 + Math.random() * 14; lg.gain.value = f0 * 0.35; lfo.connect(lg); lg.connect(o.frequency);
+  bp.type = "bandpass"; bp.frequency.value = 320 + Math.random() * 300; bp.Q.value = 4;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(bp); bp.connect(g); g.connect(A.master); g.connect(A.conv);
+  o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
+}
+
+/* ---------------- per-frame update ---------------- */
+function fnState() {
+  const spec = FN[S.organ];
+  if (!spec) return {};
+  if (spec.clock === "beat") {
+    const T = 60 / (F.bpm * healthBeat()), p = (F.t % T) / T;
+    return { p, ...heartState(p) };
+  }
+  if (spec.clock === "breath") {
+    const T = 4.0, x = (F.t % T) / T, ins = 0.4;
+    const volume = x < ins ? smooth01(x / ins) : 1 - smooth01((x - ins) / (1 - ins));
+    const flow = x < ins ? Math.sin(Math.PI * x / ins) : -0.75 * Math.sin(Math.PI * (x - ins) / (1 - ins));
+    return { p: x, volume, flow };
+  }
+  return { p: (F.t % 10) / 10 };
+}
+function fnUpdate(dt) {
+  if (!F.on) return;
+  const spec = FN[S.organ]; if (!spec || F.built !== S.organ) return;
+  const rate = spec.clock === "beat" ? 1 : F.speed;
+  if (F.playing) F.t += dt * rate;
+  const st = fnState();
+  // part motion
+  const pivots = {};
+  for (const p of S.parts) { p.fnScale = 1; p.fnPivot = null; }
+  if (spec.motion) {
+    spec.motion(st, (id, s, pivotGroup) => {
+      const p = S.byId[id]; if (!p) return;
+      p.fnScale = s;
+      if (pivotGroup) p.fnPivot = F.pivots[pivotGroup + (p.center.x < 0 && pivotGroup === "lung" ? "_r" : pivotGroup === "lung" ? "_l" : "")] || p.center;
+    });
+  }
+  // emissive cues: selection > valves open > focus pulse
+  const step = spec.steps[F.step] || {};
+  const valves = spec.valves ? spec.valves(st) : {};
+  for (const p of S.parts) {
+    if (!p.mat.emissive) continue;
+    const id = p.meta.id;
+    if (S.selected === id) { p.mat.emissive.setRGB(0.10, 0.42, 0.38); continue; }
+    let r = 0, g = 0, b = 0;
+    if (valves[id]) { g += 0.35 * valves[id]; b += 0.12 * valves[id]; }
+    if (step.focus && step.focus.includes(id)) { const k = 0.12 + 0.1 * Math.sin(F.t * 4); r += k * 0.4; g += k; b += k * 0.9; }
+    p.mat.emissive.setRGB(r, g, b);
+  }
+  F.wt = (F.wt || 0) + (F.playing ? dt * rate * healthWaveMul() : 0);
+  if (F.waves) { F.waves.uT.value = F.wt; if (F.waveOn) F.waveOn.value = 1; }
+  updateFlows(dt, st);
+  // sounds
+  if (F.sound && F.playing && spec.sound) {
+    if (spec.sound === "heart") {
+      const p = st.p, q = F.lastPhase;
+      const crossed = (a) => (q < a && p >= a) || (q > p && (a > q || a <= p));
+      if (crossed(0.13)) lub();
+      if (crossed(0.43)) dub();
+    } else if (spec.sound === "breath") breathSound(st.flow);
+    else if (spec.sound === "gut" && F.t > F.gurgleAt) { gurgle(); if (Math.random() < 0.35) setTimeout(gurgle, 160); F.gurgleAt = F.t + 1.5 + Math.random() * 4; }
+  } else if (spec.sound === "breath" && F.audio && F.audio.breath) breathSound(0);
+  F.lastPhase = st.p;
+  // auto-advance the tour
+  if (F.tour && F.playing && performance.now() > F.autoNext) { gotoStep((F.step + 1) % spec.steps.length); }
+}
+
+/* ---------------- mode on/off & UI ---------------- */
+function setSeeThrough(on) { F.see = on; applySee(on); }
+function applySee(on, keep) {
+  keep = keep || (typeof H !== "undefined" && H.on && H.dis && H.dis.fx && H.dis.fx.keep) || [];
+  for (const p of S.parts) {
+    const m = p.mat;
+    if (m.userData.orig === undefined) m.userData.orig = { t: m.transparent, o: m.opacity, d: m.depthWrite };
+    const o = m.userData.orig;
+    const spec = FN[S.organ], op = keep.includes(p.meta.id) ? 1 : spec && spec.see ? spec.see(p.meta.id) : 0.3;
+    m.transparent = on ? true : o.t; m.opacity = on ? op : o.o; m.depthWrite = on ? false : o.d;
+    m.needsUpdate = true;
+  }
+  $("fnSee").setAttribute("aria-pressed", String(F.see));
+}
+function computePivots() {
+  F.pivots = {};
+  const avg = (ids) => { const v = new THREE.Vector3(); let n = 0; ids.forEach(id => { const p = S.byId[id]; if (p) { v.add(p.center); n++; } }); return n ? v.multiplyScalar(1 / n) : null; };
+  if (S.organ === "heart") F.pivots.vent = avg(["lv", "rv", "septum"]);
+  if (S.organ === "lungs") {
+    const r = avg(["rul", "rml", "rll"]), l = avg(["lul", "lll"]), top = S.size.y * 0.22;
+    if (r) F.pivots.lung_r = r.clone().add(new THREE.Vector3(0.01, top, 0));
+    if (l) F.pivots.lung_l = l.clone().add(new THREE.Vector3(-0.01, top, 0));
+  }
+}
+function setFunction(on) {
+  F.on = on;
+  $("fnBtn").setAttribute("aria-pressed", String(on));
+  $("fnPanel").hidden = !on || (typeof H !== "undefined" && H.on);
+  if (typeof H !== "undefined" && H.on) setTimeout(updateHealthPlay, 0);
+  if (on) {
+    setPanel(null);
+    S.explode = 0; $("explodeRange").value = 0;
+    if (F.built !== S.organ) { buildFlows(S.organ); setupWaves(S.organ); computePivots(); }
+    fnGroup.visible = true;
+    F.step = 0; F.t = 0; renderSteps();
+    setSeeThrough(F.see);
+    const spec = FN[S.organ];
+    $("fnRateRow").hidden = !spec;
+    const beat = spec && spec.clock === "beat";
+    $("fnRateLabel").textContent = beat ? "Heart rate" : "Speed";
+    $("fnRate").min = beat ? 40 : 25; $("fnRate").max = beat ? 160 : 200;
+    $("fnRate").value = beat ? F.bpm : F.speed * 100;
+    $("fnRateVal").textContent = beat ? `${F.bpm} bpm` : `${F.speed.toFixed(2).replace(/\.?0+$/, "")}×`;
+    $("fnSound").hidden = !(spec && spec.sound);
+    updateSoundNote();
+  } else {
+    fnGroup.visible = false;
+    if (F.waveOn) F.waveOn.value = 0;
+    for (const p of S.parts) { p.fnScale = 1; }
+    applySee(false);
+    F.tour = false; $("fnTour").setAttribute("aria-pressed", "false");
+    applyVisibility();
+    if (F.audio && F.audio.breath) breathSound(0);
+  }
+}
+function updateSoundNote() {
+  const spec = FN[S.organ];
+  $("fnSoundNote").textContent = !spec ? "" : (!spec.sound || F.sound) ? spec.soundNote : "";
+}
+/* keep the organ visible above the panel on narrow screens */
+function updateViewOffset() {
+  const panel = !$("quizPanel").hidden ? $("quizPanel") : !$("healthPanel").hidden ? $("healthPanel") : $("fnPanel"), w = stage.clientWidth, h = stage.clientHeight;
+  if (!S.ar && !panel.hidden && w < 620) {
+    const ph = Math.min(h * 0.6, panel.offsetHeight + 78), free = h - ph;
+    // shrink the view so the whole organ fits in the space above the panel, centred there
+    const z = Math.min(1, free / h * 1.35);
+    if (Math.abs(camera.zoom - z) > 1e-3) { camera.zoom = z; camera.updateProjectionMatrix(); }
+    camera.setViewOffset(w, h, 0, ph / 2, w, h);
+  } else if (!S.ar && !panel.hidden && w >= 620) {
+    // side panel on the right: move the organ into the free space on the left
+    const pw = panel.offsetWidth + 24, z = Math.min(1, (w - pw) / w * 1.55);
+    if (Math.abs(camera.zoom - z) > 1e-3) { camera.zoom = z; camera.updateProjectionMatrix(); }
+    camera.setViewOffset(w, h, pw / 2, 0, w, h);
+  } else {
+    if (camera.view && camera.view.enabled) camera.clearViewOffset();
+    if (camera.zoom !== 1) { camera.zoom = 1; camera.updateProjectionMatrix(); }
+  }
+}
+function renderSteps() {
+  const spec = FN[S.organ]; if (!spec) return;
+  const s = spec.steps[F.step];
+  $("fnTitle").textContent = s.t;
+  $("fnText").textContent = s.d;
+  $("fnCount").textContent = `${F.step + 1} / ${spec.steps.length}`;
+  $("fnDots").innerHTML = spec.steps.map((x, i) => `<button type="button" data-i="${i}" aria-label="Step ${i + 1}: ${x.t}" aria-current="${i === F.step}"></button>`).join("");
+}
+function gotoStep(i) {
+  const spec = FN[S.organ]; if (!spec) return;
+  F.step = (i + spec.steps.length) % spec.steps.length;
+  F.autoNext = performance.now() + 9000;
+  renderSteps();
+}
+$("fnBtn").addEventListener("click", () => setFunction(!F.on));
+$("fnPlay").addEventListener("click", () => {
+  F.playing = !F.playing;
+  $("fnPlay").setAttribute("aria-pressed", String(!F.playing));
+  $("fnPlay").innerHTML = F.playing ? PAUSE_ICON : PLAY_ICON;
+  $("fnPlay").setAttribute("aria-label", F.playing ? "Pause" : "Play");
+});
+$("fnPrev").addEventListener("click", () => gotoStep(F.step - 1));
+$("fnNext").addEventListener("click", () => gotoStep(F.step + 1));
+$("fnDots").addEventListener("click", (e) => { const b = e.target.closest("button[data-i]"); if (b) gotoStep(+b.dataset.i); });
+$("fnSee").addEventListener("click", () => setSeeThrough(!F.see));
+$("fnTour").addEventListener("click", () => {
+  F.tour = !F.tour; $("fnTour").setAttribute("aria-pressed", String(F.tour)); F.autoNext = performance.now() + 9000;
+});
+$("fnSound").addEventListener("click", () => {
+  F.sound = !F.sound;
+  const A = audioCtx(); if (A && A.ctx.state === "suspended") A.ctx.resume();
+  $("fnSound").setAttribute("aria-pressed", String(F.sound));
+  $("fnSound").textContent = F.sound ? "Sound on" : "Sound off";
+  updateSoundNote();
+});
+$("fnRate").addEventListener("input", (e) => {
+  const spec = FN[S.organ];
+  if (spec && spec.clock === "beat") { F.bpm = +e.target.value; $("fnRateVal").textContent = `${F.bpm} bpm`; }
+  else { F.speed = e.target.value / 100; $("fnRateVal").textContent = `${F.speed.toFixed(2).replace(/\.?0+$/, "")}×`; }
+});
+const PLAY_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+$("fnPlay").innerHTML = PAUSE_ICON;
+
+/* ================================================================
+   WHOLE BODY: hologram figure with the 7 organs in place
+   ================================================================ */
+const BODY_TXT = {
+  brain: "Controls thought, senses and movement.",
+  heart: "Pumps about 5 litres of blood a minute.",
+  lungs: "Bring in oxygen and remove carbon dioxide.",
+  liver: "Processes nutrients and clears toxins.",
+  kidneys: "Filter the blood and make urine.",
+  stomach: "Stores food and starts digesting it.",
+  intestines: "Absorb nutrients and water from food.",
+};
+const B = { obj: null, organs: {}, meta: null, scan: { value: 0 }, band: { value: 28 }, sel: null, skeleton: true, size: 0.25, flying: null };
+
+async function fetchBody() {
+  if (cache.body) return cache.body;
+  let gltf, meta;
+  if (MODEL_MODE === "json") {
+    const d = await (await fetch("data/body.json")).json();
+    meta = d.meta;
+    const bin = atob(d.b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    gltf = await loader.parseAsync(bytes.buffer, "");
+  } else {
+    const [m, g] = await Promise.all([fetch("models/body.json").then(r => r.json()), loader.loadAsync("models/body.glb")]);
+    meta = m; gltf = g;
+  }
+  return (cache.body = { gltf, meta });
+}
+
+function hologramMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { uScan: B.scan, uBand: B.band, uColor: { value: new THREE.Color(0x4cc9f0) }, uOpacity: { value: 1 } },
+    vertexShader: `varying vec3 vN; varying vec3 vV; varying float vY;
+      void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vY = wp.y;
+        vN = normalize(mat3(modelMatrix) * normal); vV = normalize(cameraPosition - wp.xyz);
+        gl_Position = projectionMatrix * viewMatrix * wp; }`,
+    fragmentShader: `uniform float uScan; uniform float uBand; uniform vec3 uColor; uniform float uOpacity; varying vec3 vN; varying vec3 vV; varying float vY;
+      void main() { float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.4);
+        float band = exp(-pow((vY - uScan) * uBand, 2.0));
+        float grid = smoothstep(0.92, 1.0, abs(sin(vY * uBand * 9.0)));
+        float a = (0.05 + 0.75 * f + 0.55 * band + 0.05 * grid) * uOpacity;
+        gl_FragColor = vec4(uColor * (0.6 + 0.8 * band), a); }`,
+  });
+}
+
+function buildBody(gltf, meta) {
+  model.clear(); capsGroup.clear();
+  S.parts = []; S.byId = {};
+  B.organs = {}; B.meta = meta; B.sel = null;
+  const root_ = gltf.scene; root_.updateMatrixWorld(true);
+  const grab = (name) => { let m = null; root_.getObjectByName(name)?.traverse(o => { if (!m && o.isMesh) m = o; }); return m; };
+  const wrap = (mesh, mat) => {
+    const holder = new THREE.Group(); holder.matrixAutoUpdate = false; holder.matrix.copy(mesh.matrixWorld);
+    const m = new THREE.Mesh(mesh.geometry, mat); holder.add(m); return { holder, mesh: m };
+  };
+  const skin = wrap(grab("skin"), hologramMaterial());
+  skin.mesh.renderOrder = 950;
+  const skel = wrap(grab("skeleton"), new THREE.MeshStandardMaterial({ color: 0xdbe8ef, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.42,
+    depthWrite: false, emissive: new THREE.Color(0x183848), emissiveIntensity: 0.6 }));
+  skel.mesh.renderOrder = 940;
+  model.add(skel.holder, skin.holder);
+  for (const om of meta.organs) {
+    const src = grab(`org_${om.slug}`); if (!src) continue;
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.08 });
+    const w = wrap(src, mat);
+    const pivot = new THREE.Group();
+    const c = new THREE.Vector3(...om.center);
+    pivot.position.copy(c); w.holder.position.set(0, 0, 0);
+    const inner = new THREE.Group(); inner.position.copy(c).negate(); inner.add(w.holder); pivot.add(inner);
+    w.mesh.userData.organ = om.slug; w.mesh.castShadow = true;
+    model.add(pivot);
+    B.organs[om.slug] = { pivot, mesh: w.mesh, mat, center: c, meta: om };
+  }
+  B.obj = { skin, skel };
+  setSkeleton(B.skeleton);
+  S.size.set(0.7, meta.height, 0.32);
+  S.center.set(0, meta.height * 0.52, 0);
+  ground.scale.setScalar(0.45);
+  const r = meta.height;
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -r; sun.shadow.camera.right = sun.shadow.camera.top = r;
+  sun.shadow.camera.far = r * 8; sun.shadow.camera.updateProjectionMatrix();
+  renderBodyLabels();
+}
+
+async function showBody(push) {
+  const token = ++S.loadToken;
+  if (F.on) setFunction(false);
+  if (typeof H !== "undefined" && H.on) setHealth(false);
+  if (typeof Q !== "undefined" && Q.on) setQuiz(false);
+  S.organ = "body"; S.mode = "body";
+  document.querySelectorAll("#index button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.slug === "body")));
+  $("system").textContent = "Whole body"; $("name").textContent = "The human body"; $("latin").textContent = "Corpus humanum";
+  $("weight").textContent = "about 70 kg"; $("where").textContent = "7 organs shown";
+  $("facts").innerHTML = ["Tap any glowing organ to open it, then slice it, pull it apart and watch it work.",
+    "An adult body has 206 bones, shown here as a pale skeleton inside the glowing skin.",
+    "The heart beats about 100,000 times a day to keep every organ supplied with blood."].map(f => `<li>${f}</li>`).join("");
+  if (push) { try { history.replaceState(null, "", "#body"); } catch (e) {} }
+  setModeUI("body");
+  status("Loading body…");
+  try {
+    const { gltf, meta } = await fetchBody();
+    if (token !== S.loadToken) return;
+    buildBody(gltf, meta);
+    S.selected = null; updateCard(); $("bodyCard").hidden = true;
+    turn.rotation.set(0, 0, 0);
+    if (S.ar) turn.scale.setScalar(B.size); else { turn.scale.setScalar(1); frameBody(); }
+    $("size").textContent = `${(meta.height * 100).toFixed(0)} cm tall`;
+    $("ruler").textContent = `Adult body · ${(meta.height * 100).toFixed(0)} cm · tap an organ`;
+    status("");
+    splashReady();
+    if (!S.ar) { hint("Tap a glowing organ to open it"); setTimeout(() => { if (S.mode === "body") hint(""); }, 4500); }
+    if (S.ar && !S.anchored) { S.placing = true; root.visible = false; hint("Point at the floor or a table, then tap to place the body."); }
+  } catch (e) {
+    if (token === S.loadToken) status("The body model didn't load. Check your connection and reload the page.");
+  }
+}
+
+function frameBody() {
+  const h = B.meta ? B.meta.height : 1.73;
+  camera.near = 0.02; camera.far = 40; camera.updateProjectionMatrix();
+  const asp = Math.max(0.4, camera.aspect || 1);
+  const dist = h * (asp < 0.8 ? 2.05 : 1.75);
+  camera.position.set(dist * 0.18, h * 0.56, dist);
+  controls.target.set(0, h * 0.53, 0);
+  controls.minDistance = 0.25; controls.maxDistance = h * 4;
+  controls.update();
+}
+
+function setSkeleton(on) {
+  B.skeleton = on;
+  if (B.obj) B.obj.skel.holder.visible = on;
+  $("skelBtn").setAttribute("aria-pressed", String(on));
+}
+
+/* tap an organ in the body */
+function pickBody(ray) {
+  raycaster.ray.copy(ray);
+  const hits = raycaster.intersectObjects(Object.values(B.organs).map(o => o.mesh), false);
+  selectBodyOrgan(hits.length ? hits[0].object.userData.organ : null);
+}
+function selectBodyOrgan(slug) {
+  B.sel = slug;
+  if (slug) hint("");
+  const card = $("bodyCard");
+  card.hidden = !slug;
+  if (!slug) return;
+  const o = ORGANS.find(x => x.slug === slug);
+  $("bodyCardName").textContent = o.name;
+  $("bodyCardSys").textContent = o.system;
+  $("bodyCardText").textContent = BODY_TXT[slug];
+  $("bodyOpen").textContent = `Open the ${o.name.toLowerCase()}`;
+}
+$("bodyOpen").addEventListener("click", () => { if (B.sel) flyInto(B.sel); });
+$("bodyCardClose").addEventListener("click", () => selectBodyOrgan(null));
+$("skelBtn").addEventListener("click", () => setSkeleton(!B.skeleton));
+$("sizeBtn").addEventListener("click", () => {
+  B.size = B.size < 0.5 ? 1 : 0.25;
+  turn.scale.setScalar(B.size);
+  $("sizeLabel").textContent = B.size < 0.5 ? "Life-size" : "Tabletop";
+});
+$("bodyBtn").addEventListener("click", () => showBody(true));
+
+/* fly the camera into an organ, fading the body, then open the organ view */
+function flyInto(slug) {
+  const o = B.organs[slug]; if (!o) return show(slug, true);
+  $("bodyCard").hidden = true;
+  if (S.ar) { show(slug, true); return; }
+  const r = Math.max(...o.meta.size);
+  B.flying = { slug, t0: performance.now(), dur: 900,
+               fromPos: camera.position.clone(), fromTgt: controls.target.clone(),
+               toTgt: o.center.clone(), toPos: o.center.clone().add(new THREE.Vector3(0, r * 0.15, r * 2.6)) };
+}
+
+/* floating organ labels */
+function renderBodyLabels() {
+  const wrap = $("bodyLabels");
+  wrap.innerHTML = Object.keys(B.organs).map(s => `<button type="button" class="blabel" data-slug="${s}">${ORGANS.find(o => o.slug === s).name}</button>`).join("");
+}
+$("bodyLabels").addEventListener("click", (e) => { const b = e.target.closest(".blabel"); if (b) selectBodyOrgan(b.dataset.slug); });
+$("bodyLabels").addEventListener("beforexrselect", (e) => e.preventDefault());
+$("bodyCard").addEventListener("beforexrselect", (e) => e.preventDefault());
+
+const LABEL_OFFSET = { brain: [0, 0.06, 0], heart: [-0.12, 0.02, 0], lungs: [0.16, 0.06, 0], liver: [-0.16, -0.02, 0],
+                       kidneys: [0.15, -0.03, 0], stomach: [0.15, 0.0, 0], intestines: [-0.15, -0.06, 0] };
+function bodyUpdate(dt) {
+  if (S.mode !== "body" || !B.obj) { $("bodyLabels").hidden = true; return; }
+  const t = performance.now() / 1000;
+  const k = turn.scale.x, base = root.getWorldPosition(new THREE.Vector3()).y;
+  B.scan.value = base + k * B.meta.height * (0.5 + 0.5 * Math.sin(t * 0.7));
+  B.band.value = 28 / k;
+  // heart beats gently, lungs breathe
+  const beat = heartState((t % (60 / 72)) / (60 / 72));
+  if (B.organs.heart) B.organs.heart.pivot.scale.setScalar(1 - 0.05 * beat.vent - 0.02 * beat.atria);
+  if (B.organs.lungs) B.organs.lungs.pivot.scale.setScalar(1 + 0.02 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2 / 4)));
+  for (const [s, o] of Object.entries(B.organs)) {
+    const on = B.sel === s;
+    o.mat.emissive.setRGB(on ? 0.15 : 1, on ? 0.6 : 1, on ? 0.55 : 1);
+    o.mat.emissiveIntensity = on ? 0.6 + 0.25 * Math.sin(t * 5) : 0.08;
+  }
+  // camera fly-in
+  if (B.flying) {
+    const f = B.flying, k = smooth01((performance.now() - f.t0) / f.dur);
+    camera.position.lerpVectors(f.fromPos, f.toPos, k);
+    controls.target.lerpVectors(f.fromTgt, f.toTgt, k);
+    B.obj.skin.mesh.material.uniforms.uOpacity.value = 1 - k;
+    B.obj.skel.mesh.material.opacity = 0.42 * (1 - k);
+    if (k >= 1) { const slug = f.slug; B.flying = null; show(slug, true); }
+  }
+  // labels follow the organs on screen
+  const cam = S.ar ? renderer.xr.getCamera() : camera;
+  const wrap = $("bodyLabels");
+  wrap.hidden = !!B.flying || (S.ar && S.placing);
+  if (wrap.hidden) return;
+  const rect = ui.getBoundingClientRect();
+  model.updateMatrixWorld(true);
+  wrap.querySelectorAll(".blabel").forEach(el => {
+    const o = B.organs[el.dataset.slug]; if (!o) return;
+    const off = LABEL_OFFSET[el.dataset.slug] || [0, 0, 0];
+    _v.copy(o.center).add(new THREE.Vector3(...off)).applyMatrix4(model.matrixWorld).project(cam);
+    const vis = _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1;
+    el.style.display = vis ? "" : "none";
+    el.style.transform = `translate(${((_v.x + 1) / 2 * rect.width).toFixed(1)}px, ${((1 - _v.y) / 2 * rect.height).toFixed(1)}px) translate(-50%, -50%)`;
+    el.classList.toggle("on", B.sel === el.dataset.slug);
+  });
+}
+
+/* which tools show in body vs organ mode */
+function setModeUI(mode) {
+  const body = mode === "body";
+  for (const id of ["sliceBtn", "explodeBtn", "fnBtn", "partsBtn", "healthBtn", "quizBtn"]) { const el = $(id); if (el) el.hidden = body; }
+  $("skelBtn").hidden = !body;
+  $("sizeBtn").hidden = !(body && S.ar);
+  $("bodyBtn").hidden = body;
+  stage.classList.toggle("dark", body);
+  if (body) { $("drawer").hidden = true; setPanel(null); $("card").hidden = true; }
+  $("bodyLabels").hidden = !body;
+}
+
+/* ================================================================
+   HEALTH: common diseases, shown on the model with a healthy ↔ disease slider
+   ================================================================ */
+const EMERG = "Call 112 (emergency) or 108 (ambulance) in India, or your local emergency number.";
+const LOBES = ["frontal_l", "frontal_r", "parietal_l", "parietal_r", "temporal_l", "temporal_r", "occipital_l", "occipital_r", "limbic_l", "limbic_r", "insula_l", "insula_r"];
+const SEGS = ["segI", "segII", "segIII", "segIV", "segV", "segVI", "segVII", "segVIII"];
+const LOBES_LUNG = ["rul", "rml", "rll", "lul", "lll"];
+
+const HEALTH = {
+  heart: [
+    { id: "heart_attack", name: "Heart attack",
+      what: "A coronary artery gets blocked, usually when a fatty plaque cracks and a clot forms on it. The heart muscle beyond it is starved of oxygen and starts to die within minutes. On the model, the left coronary artery turns dark and the muscle it feeds greys out.",
+      facts: ["Heart attacks and strokes cause about 85% of the 19.8 million deaths from cardiovascular disease each year (WHO, 2022).", "The sooner the blocked artery is reopened, the more heart muscle is saved."],
+      signs: ["Pain, pressure or tightness in the centre of the chest", "Pain spreading to the arms, left shoulder, jaw or back", "Shortness of breath", "Cold sweat, nausea or light-headedness"],
+      emergency: "Call an ambulance straight away. Don't drive yourself. Sit and rest while you wait.",
+      prevent: ["Don't smoke or chew tobacco", "Eat more vegetables, fruit and whole grains; less salt, sugar and fried food", "Be active for at least 150 minutes a week", "Keep a healthy weight", "Get blood pressure, sugar and cholesterol checked"],
+      doctor: "Have blood pressure, sugar and cholesterol checked regularly from age 30, earlier if heart disease runs in your family. Never ignore chest pain.",
+      fx: { tint: [{ ids: ["lca"], mul: "#2a0c0c" }, { ids: ["lv", "septum"], mul: "#8d7d92", add: "#202028", amt: 0.8 }], pulse: [{ ids: ["lca"], color: "#ff2a10", rate: 1.1 }], block: ["lca_", "left_"], blockAmt: 0.6 } },
+    { id: "hypertension", name: "High blood pressure",
+      what: "Blood pushes too hard against the artery walls. The heart has to work harder, so over the years the wall of the left ventricle thickens and the arteries stiffen. It usually has no symptoms, which is why it's called the silent killer.",
+      facts: ["About 1 in 4 adults in India has high blood pressure (NFHS-5), and many don't know it.", "Repeated readings of 140/90 mmHg or higher mean high blood pressure."],
+      signs: ["Usually none", "Very high pressure can cause a severe headache, chest pain, breathlessness, blurred vision or confusion"],
+      emergency: "If high blood pressure comes with chest pain, a severe headache, confusion or weakness, get emergency help.",
+      prevent: ["Eat less salt: under 5 g a day, about one teaspoon (WHO)", "Stay active and keep a healthy weight", "Avoid tobacco and limit alcohol", "Sleep well and manage stress"],
+      doctor: "Check your blood pressure at least once a year. If you're given medicine, take it every day even when you feel fine.",
+      fx: { scale: [{ ids: ["lv", "septum"], s: 1.08 }], tint: [{ ids: ["aorta"], mul: "#ffb0a0", add: "#3a0800" }], rate: 1.25 } },
+    { id: "heart_failure", name: "Heart failure",
+      what: "The heart muscle becomes too weak or stiff to pump enough blood. The chambers stretch and enlarge, and fluid backs up into the lungs and legs. On the model the chambers swell and beat more weakly.",
+      facts: ["It's often the result of heart attacks, long-standing high blood pressure or valve disease.", "With treatment, many people live well with heart failure for years."],
+      signs: ["Breathlessness when active or lying flat", "Swollen ankles and legs", "Tiredness", "Sudden weight gain from fluid"],
+      emergency: "Severe breathlessness, chest pain or fainting need emergency help.",
+      prevent: ["Control blood pressure and diabetes", "Avoid tobacco and alcohol", "Limit salt", "Follow your treatment plan if diagnosed"],
+      doctor: "See a doctor if you get breathless doing things that used to be easy, or your ankles swell.",
+      fx: { scale: [{ ids: ["lv", "rv", "septum"], s: 1.13 }, { ids: ["la", "ra"], s: 1.1 }], tint: [{ ids: ["lv", "rv"], mul: "#e2b2b2" }], weak: true } },
+  ],
+  lungs: [
+    { id: "asthma", name: "Asthma",
+      what: "The airways are oversensitive. Triggers such as dust, smoke, pollen or cold air make their lining swell and the muscle around them tighten, so air struggles to get through. On the model the airways turn red and narrow.",
+      facts: ["More than 260 million people worldwide have asthma (WHO).", "It often starts in childhood and can be well controlled with the right inhaler treatment."],
+      signs: ["Wheezing", "Coughing, especially at night", "Chest tightness", "Shortness of breath"],
+      emergency: "If the inhaler doesn't help, the lips turn blue or the person can't speak in full sentences, get emergency help.",
+      prevent: ["Find and avoid your triggers", "Keep away from tobacco smoke", "Reduce indoor smoke and dust", "Use preventer inhalers exactly as prescribed"],
+      doctor: "See a doctor if you often wheeze or cough, or wake at night breathless.",
+      fx: { tint: [{ ids: ["bronchial_tree", "main_bronchi", "trachea"], mul: "#ff6a60", add: "#300000" }], scale: [{ ids: ["bronchial_tree"], s: 0.9 }], air: 0.45 } },
+    { id: "pneumonia", name: "Pneumonia",
+      what: "An infection by bacteria or viruses fills the tiny air sacs with fluid and pus, so that part of the lung can't take in oxygen. On the model the lower lobes become solid and pale.",
+      facts: ["It is the biggest infectious killer of children under 5 worldwide (WHO).", "Vaccines protect against several of its most common causes."],
+      signs: ["Cough with phlegm", "Fever and chills", "Fast or difficult breathing", "Chest pain when breathing"],
+      emergency: "Fast breathing, blue lips, confusion, or a child whose chest pulls in when breathing need emergency care.",
+      prevent: ["Keep up to date with vaccines, including childhood vaccines", "Wash hands with soap", "Avoid smoke", "Good nutrition, and breastfeeding for babies"],
+      doctor: "See a doctor for a cough with fever lasting more than a few days, or any difficulty breathing.",
+      fx: { tint: [{ ids: ["rll", "lll"], mul: "#fff0d8", add: "#4a3018" }] } },
+    { id: "copd", name: "COPD (smoke damage)",
+      what: "Years of tobacco smoke, or smoke from cooking fires, damage the airways and destroy the air sacs. The lungs lose their spring and air gets trapped. On the model the lungs darken.",
+      facts: ["COPD is the third leading cause of death worldwide: 3.4 million deaths in 2023 (WHO).", "In countries like India, smoke from cooking with wood, dung or coal is a major cause, not only smoking."],
+      signs: ["A cough that lasts, often with phlegm", "Breathlessness that slowly gets worse", "Wheezing", "Tiredness"],
+      emergency: "Sudden severe breathlessness or blue lips need emergency help.",
+      prevent: ["Don't smoke, and get help to quit if you do", "Cook with clean fuel, or keep the kitchen well ventilated", "Wear a mask against dust and fumes at work", "Stay indoors when outdoor pollution is very high"],
+      doctor: "See a doctor if you've had a cough or breathlessness for weeks, especially if you smoke or cook over an open fire.",
+      fx: { tint: [{ ids: LOBES_LUNG, mul: "#6e6268" }], air: 0.6 } },
+    { id: "tb", name: "Tuberculosis (TB)",
+      what: "TB bacteria spread through the air when someone with TB coughs. They usually settle in the upper parts of the lungs, forming patches and sometimes cavities, shown as nodules on the model.",
+      facts: ["India has about a quarter of the world's TB cases (WHO Global TB Report 2025).", "TB is curable. Testing and treatment are free in India, but the full course must be completed."],
+      signs: ["A cough lasting more than 2 weeks", "Coughing up blood", "Fever and night sweats", "Weight loss and poor appetite"],
+      emergency: "Coughing up a large amount of blood needs emergency help.",
+      prevent: ["Get tested if you've been around someone with TB", "Cover coughs and sneezes", "Keep rooms well ventilated", "BCG vaccine for babies", "If treated, finish the whole course"],
+      doctor: "Get tested if a cough lasts more than 2 weeks. Government health centres in India test and treat TB for free.",
+      fx: { marks: [{ part: "rul", n: 12, r: 0.0055, color: "#b9a46e", up: 0.35, spread: 0.024 }, { part: "lul", n: 10, r: 0.005, color: "#b9a46e", up: 0.4, spread: 0.022 }], tint: [{ ids: ["rul", "lul"], mul: "#e8d6cc", amt: 0.5 }] } },
+  ],
+  brain: [
+    { id: "stroke", name: "Stroke",
+      what: "The blood supply to part of the brain is cut off by a clot, or a blood vessel bursts and bleeds. Brain cells in that area start to die within minutes. On the model part of the left hemisphere is damaged, which would weaken the right side of the body.",
+      facts: ["Stroke is one of the world's leading causes of death and disability.", "Clot-dissolving treatment works best within hours of the first symptom, so time matters."],
+      signs: ["B — Balance: sudden loss of balance", "E — Eyes: sudden loss of vision", "F — Face drooping on one side", "A — Arm or leg weakness on one side", "S — Speech slurred or confused", "T — Time to call for help"],
+      emergency: "Call an ambulance immediately and note the time the symptoms started. Even if they go away, get checked the same day.",
+      prevent: ["Control blood pressure: the biggest risk factor", "Don't smoke or chew tobacco", "Manage diabetes and cholesterol", "Be active and limit alcohol"],
+      doctor: "If symptoms come and go within minutes (a 'mini-stroke'), see a doctor the same day: it's a warning sign.",
+      fx: { tint: [{ ids: ["frontal_l", "parietal_l"], mul: "#5c2a3a", add: "#1a0006" }] } },
+    { id: "migraine", name: "Migraine",
+      what: "A brain disorder with repeated attacks of throbbing headache, often on one side. Some people first see flashing lights or zigzags (an aura), linked to a slow wave of activity spreading across the visual cortex at the back of the brain.",
+      facts: ["Migraine is one of the most common disabling conditions worldwide.", "An attack can last from a few hours to three days."],
+      signs: ["Throbbing headache, often on one side", "Sensitivity to light and sound", "Nausea or vomiting", "Flashing lights or zigzags before the headache"],
+      emergency: "A sudden 'thunderclap' headache, the worst headache of your life, or a headache with fever, stiff neck, weakness or confusion needs emergency help.",
+      prevent: ["Notice and avoid your triggers: missed meals, poor sleep, stress, bright light", "Keep regular sleep and meal times", "Drink enough water", "Keep a headache diary"],
+      doctor: "See a doctor if headaches are frequent, getting worse, or stop you doing daily activities.",
+      fx: { pulse: [{ ids: ["occipital_l", "occipital_r", "parietal_l"], color: "#ff9f43", rate: 0.9 }] } },
+    { id: "epilepsy", name: "Epilepsy",
+      what: "Brain cells sometimes fire in a sudden, uncontrolled burst of electrical activity, causing a seizure. It can start in one area, often a temporal lobe and the hippocampus, and spread.",
+      facts: ["About 50 million people worldwide have epilepsy (WHO).", "Up to 70% of people with epilepsy could live seizure-free with proper treatment (WHO)."],
+      signs: ["Shaking or stiffening of the body", "Staring spells", "Sudden confusion", "Loss of awareness"],
+      emergency: "During a seizure keep the person safe, turn them on their side and put nothing in their mouth. Call for help if it lasts more than 5 minutes, repeats, or they are injured or don't wake up.",
+      prevent: ["Take medicines regularly if prescribed", "Get enough sleep", "Avoid alcohol", "Protect your head: wear a helmet"],
+      doctor: "See a doctor after any first seizure.",
+      fx: { pulse: [{ ids: ["temporal_l", "hippocampus"], color: "#ffe066", rate: 6, flicker: true }] } },
+    { id: "alzheimers", name: "Alzheimer's disease",
+      what: "The most common cause of dementia. Abnormal proteins build up and brain cells die, starting in the hippocampus, the memory centre. Over years the brain shrinks and the fluid-filled ventricles grow.",
+      facts: ["About 57 million people had dementia worldwide in 2021; Alzheimer's causes 60–70% of cases (WHO).", "The risk rises with age, but dementia is not a normal part of ageing."],
+      signs: ["Forgetting recent events", "Repeating questions", "Getting lost in familiar places", "Trouble with words, planning or mood changes"],
+      prevent: ["Stay physically active", "Keep mentally and socially active", "Control blood pressure and diabetes; treat hearing loss", "Don't smoke and limit alcohol"],
+      doctor: "See a doctor if memory problems affect daily life. An early diagnosis helps with planning and care.",
+      fx: { scale: [{ ids: ["hippocampus"], s: 0.7 }, { ids: LOBES, s: 0.97 }, { ids: ["ventricles"], s: 1.3 }] } },
+  ],
+  liver: [
+    { id: "fatty", name: "Fatty liver",
+      what: "Fat builds up inside liver cells, often linked to extra weight, diabetes or alcohol. If it continues it can cause inflammation and scarring. On the model the liver turns pale and yellow.",
+      facts: ["Studies estimate that more than a third of Indian adults have fatty liver not caused by alcohol.", "Losing 7–10% of body weight can often reverse it."],
+      signs: ["Usually none", "Sometimes tiredness or a dull ache under the right ribs"],
+      prevent: ["Keep a healthy weight", "Cut sugar, sweet drinks, refined flour and fried food", "Be active most days", "Avoid or limit alcohol", "Manage diabetes"],
+      doctor: "Ask your doctor about a liver check if you are overweight or have diabetes. It's often found on an ultrasound scan.",
+      fx: { tint: [{ ids: SEGS, mul: "#b0ffff", add: "#c8a862" }] } },
+    { id: "hepatitis", name: "Viral hepatitis",
+      what: "Viruses inflame the liver. Hepatitis A and E spread through contaminated food and water; B and C through infected blood, needles or from mother to baby. On the model the liver becomes swollen and inflamed.",
+      facts: ["Hepatitis B and C together affect about 300 million people worldwide (WHO).", "A safe vaccine prevents hepatitis B, and it's part of India's childhood immunisation."],
+      signs: ["Yellow eyes or skin (jaundice)", "Dark urine", "Tiredness, nausea, poor appetite", "Pain under the right ribs"],
+      emergency: "Confusion, drowsiness, vomiting blood or deep jaundice need emergency care.",
+      prevent: ["Get the hepatitis B vaccine", "Drink safe water and follow food hygiene", "Never share needles, razors or toothbrushes", "Make sure injections and tattoos use new, sterile needles"],
+      doctor: "See a doctor if your eyes or skin turn yellow. Ask for hepatitis B and C tests if you may have been exposed.",
+      fx: { tint: [{ ids: SEGS, mul: "#ffb08a", add: "#3a1000" }], scale: [{ ids: SEGS, s: 1.05 }] } },
+    { id: "cirrhosis", name: "Cirrhosis",
+      what: "Long-term damage from alcohol, hepatitis B or C, or fatty liver replaces healthy tissue with scar tissue. The liver shrinks, turns hard and lumpy, and stops working well.",
+      facts: ["Scarring builds up over many years, often without symptoms until late.", "Removing the cause, such as stopping alcohol, can stop it getting worse."],
+      signs: ["Tiredness and weight loss", "Swollen belly or legs", "Yellow eyes", "Easy bruising; confusion in late stages"],
+      emergency: "Vomiting blood, black stools or confusion need emergency help.",
+      prevent: ["Avoid or limit alcohol", "Get vaccinated against hepatitis B; get tested for B and C", "Treat fatty liver early"],
+      doctor: "Have regular check-ups if you drink heavily or have hepatitis or fatty liver.",
+      fx: { tint: [{ ids: SEGS, mul: "#c09a6a", add: "#1a0e00" }], scale: [{ ids: SEGS, s: 0.9 }] } },
+    { id: "gallstones", name: "Gallstones",
+      what: "Hard stones form from bile in the gallbladder. If one blocks a bile duct it causes sudden pain, and sometimes infection.",
+      facts: ["Many people have gallstones without knowing it.", "They're more common in women, with age and with extra weight."],
+      signs: ["Sudden pain in the upper right belly, often after a fatty meal", "Pain spreading to the right shoulder", "Nausea or vomiting"],
+      emergency: "Pain with fever, yellow eyes, or pain lasting several hours needs urgent care.",
+      prevent: ["Keep a healthy weight and avoid crash diets", "Eat plenty of fibre and regular meals", "Stay active"],
+      doctor: "See a doctor for repeated pain in the upper right belly after meals.",
+      fx: { marks: [{ part: "gallbladder", n: 7, r: 0.0055, color: "#d4b040", spread: 0.009 }], see: ["gallbladder"] } },
+  ],
+  kidneys: [
+    { id: "stones", name: "Kidney stones",
+      what: "Minerals in the urine form hard crystals. A stone moving out of the kidney into the ureter causes severe pain. On the model, stones sit in the renal pelvis.",
+      facts: ["Not drinking enough water, especially in hot weather, is a major risk.", "About half of people who have one stone get another within 5 to 10 years."],
+      signs: ["Severe pain in the side or back that comes in waves and spreads to the groin", "Blood in the urine", "Nausea", "Frequent or painful urination"],
+      emergency: "Pain with fever and chills, or being unable to pass urine, needs emergency care.",
+      prevent: ["Drink plenty of water, enough that urine is pale", "Eat less salt", "Limit sugary and cola drinks", "Eat plenty of fruit and vegetables"],
+      doctor: "See a doctor for blood in the urine or pain in the side that keeps coming back.",
+      fx: { marks: [{ part: "hilum_l", n: 4, r: 0.0035, color: "#d8c070", spread: 0.008 }, { part: "hilum_r", n: 3, r: 0.004, color: "#d8c070", spread: 0.008 }], see: ["hilum_l", "hilum_r"] } },
+    { id: "ckd", name: "Chronic kidney disease",
+      what: "Over years the kidney's filters slowly lose their function, most often because of diabetes or high blood pressure. The kidneys shrink and scar, and waste builds up in the blood.",
+      facts: ["Diabetes and high blood pressure are its two leading causes.", "Simple blood and urine tests can find it early."],
+      signs: ["Usually none at first", "Later: swollen feet or face, tiredness, foamy urine, passing less urine, itching"],
+      emergency: "Passing very little urine, severe breathlessness or confusion need emergency help.",
+      prevent: ["Control blood pressure and blood sugar", "Don't take painkillers regularly without medical advice", "Drink enough water", "Avoid tobacco and eat less salt"],
+      doctor: "If you have diabetes or high blood pressure, get a kidney check (a blood creatinine and urine test) every year.",
+      fx: { scale: [{ ids: ["capsule_l", "cortex_l", "column_l", "pyramid_l", "papilla_l", "hilum_l", "capsule_r", "cortex_r", "column_r", "pyramid_r", "papilla_r", "hilum_r"], s: 0.86 }],
+            tint: [{ ids: ["capsule_l", "capsule_r", "cortex_l", "cortex_r"], mul: "#d8b4a4", add: "#1a0a04" }] } },
+    { id: "kidney_infection", name: "Kidney infection",
+      what: "Bacteria from a bladder infection travel up the ureter into the kidney, inflaming the renal pelvis and the tissue around it.",
+      facts: ["Most start as an ordinary urinary infection that wasn't treated.", "It's more common in women and in pregnancy."],
+      signs: ["Burning when passing urine and needing to go often", "Fever and chills", "Pain in the back or side", "Nausea or vomiting"],
+      emergency: "High fever with vomiting, confusion or severe pain needs urgent care.",
+      prevent: ["Drink plenty of water", "Don't hold urine for long", "Good hygiene", "Get urinary infections treated early"],
+      doctor: "See a doctor for burning urine with fever or back pain.",
+      fx: { tint: [{ ids: ["hilum_l", "hilum_r", "pyramid_l", "pyramid_r", "papilla_l", "papilla_r"], mul: "#ff7060", add: "#400000" }], pulse: [{ ids: ["hilum_l", "hilum_r"], color: "#ff5a40", rate: 1.2 }] } },
+  ],
+  stomach: [
+    { id: "gerd", name: "Acidity and reflux (GERD)",
+      what: "The ring of muscle at the bottom of the oesophagus doesn't close properly, so stomach acid washes back up and irritates the oesophagus. On the model the oesophagus becomes red and inflamed.",
+      facts: ["Occasional heartburn is common; reflux twice a week or more is called GERD.", "Large meals, lying down after eating, smoking and extra weight make it worse."],
+      signs: ["A burning feeling in the chest after eating (heartburn)", "A sour taste in the mouth", "Food coming back up", "Cough or hoarse voice"],
+      emergency: "Chest pain can be a heart attack, especially with sweating or breathlessness. If unsure, get emergency help.",
+      prevent: ["Eat smaller meals", "Don't lie down for 2–3 hours after eating", "Raise the head of your bed", "Cut down on fried and spicy food, tea and coffee", "Stop smoking; keep a healthy weight"],
+      doctor: "See a doctor if heartburn is frequent, or you have trouble swallowing, weight loss or vomiting.",
+      fx: { tint: [{ ids: ["esophagus", "cardia"], mul: "#ff6a55", add: "#400800" }], pulse: [{ ids: ["esophagus"], color: "#ff4a30", rate: 0.8 }] } },
+    { id: "ulcer", name: "Peptic ulcer",
+      what: "An open sore in the lining of the stomach or duodenum. Most are caused by H. pylori bacteria or by taking painkillers called NSAIDs often. On the model, ulcers appear in the antrum and duodenum.",
+      facts: ["H. pylori infection is common and can be cured with a course of medicines from a doctor.", "Stress and spicy food can worsen symptoms but don't cause ulcers on their own."],
+      signs: ["Burning pain in the upper belly, often when the stomach is empty", "Bloating or nausea", "Dark, black stools or vomiting blood (serious)"],
+      emergency: "Vomiting blood, black tarry stools or sudden severe belly pain need emergency help.",
+      prevent: ["Don't take painkillers regularly without medical advice", "Don't smoke and limit alcohol", "Wash hands and eat clean food", "Get tested for H. pylori if symptoms keep coming back"],
+      doctor: "See a doctor for upper belly pain that keeps coming back.",
+      fx: { marks: [{ part: "antrum", n: 1, r: 0.006, color: "#7a1010", surface: [0.3, -1, 0.6] }, { part: "duodenum", n: 1, r: 0.005, color: "#7a1010", surface: [0.2, 0.3, 1] }], tint: [{ ids: ["mucosa"], mul: "#ff8a80", amt: 0.5 }] } },
+    { id: "gastritis", name: "Gastritis",
+      what: "The stomach lining becomes inflamed, from H. pylori bacteria, alcohol or frequent use of some painkillers. On the model the lining and body of the stomach turn red.",
+      facts: ["It's very common and usually gets better once the cause is treated.", "Long-term gastritis can lead to ulcers."],
+      signs: ["Indigestion or a gnawing ache in the upper belly", "Feeling full quickly", "Nausea"],
+      emergency: "Vomiting blood or black stools need emergency help.",
+      prevent: ["Limit alcohol and stop smoking", "Avoid regular painkillers without advice", "Eat regular, balanced meals"],
+      doctor: "See a doctor if indigestion lasts more than a couple of weeks.",
+      fx: { tint: [{ ids: ["mucosa", "body", "antrum"], mul: "#ff7a70", add: "#300000" }] } },
+  ],
+  intestines: [
+    { id: "appendicitis", name: "Appendicitis",
+      what: "The appendix gets blocked and infected, and swells up. If not treated it can burst and spread infection through the belly. On the model the appendix swells and turns red.",
+      facts: ["It's the most common reason for emergency belly surgery.", "It's most common between the ages of 10 and 30."],
+      signs: ["Pain that starts around the belly button and moves to the lower right", "Pain that gets worse when moving or coughing", "Fever, nausea and loss of appetite"],
+      emergency: "Severe pain in the lower right belly needs hospital care quickly. Don't take laxatives or put heat on the belly.",
+      prevent: ["There's no sure way to prevent it", "A diet rich in fibre may lower the risk"],
+      doctor: "Go to a hospital straight away if you think it might be appendicitis.",
+      fx: { tint: [{ ids: ["appendix"], mul: "#ff5a48", add: "#500000" }], scale: [{ ids: ["appendix"], s: 1.7 }], pulse: [{ ids: ["appendix"], color: "#ff3a20", rate: 1.4 }], see: true, keep: ["appendix"] } },
+    { id: "diarrhoea", name: "Diarrhoea (gastroenteritis)",
+      what: "An infection from contaminated food or water inflames the intestines. They push their contents through too fast, so water isn't absorbed. On the model the waves race along.",
+      facts: ["Diarrhoea is a leading cause of death in children under 5 worldwide, mostly from dehydration (WHO).", "Oral rehydration solution (ORS) and zinc save lives."],
+      signs: ["Loose, watery stools", "Cramps, vomiting or fever", "Dehydration: thirst, little urine, dry mouth, sunken eyes"],
+      emergency: "Signs of severe dehydration, blood in the stool, or a baby who won't drink need urgent care.",
+      prevent: ["Drink safe water: boiled or filtered", "Wash hands with soap", "Keep food clean and covered", "Rotavirus vaccine for babies; breastfeeding"],
+      doctor: "See a doctor if diarrhoea lasts more than 2 days, or there's blood, high fever or dehydration.",
+      fx: { tint: [{ ids: ["jejunum", "ileum", "ascending", "transverse", "descending"], mul: "#ff9a8a", amt: 0.6 }], waves: 3.0, flow: 3.0 } },
+    { id: "ibs", name: "Irritable bowel syndrome",
+      what: "The gut is extra sensitive and its muscle waves are irregular, sometimes too fast and sometimes too slow. There's no visible damage, so on the model only the movement changes.",
+      facts: ["It's common worldwide and more common in women.", "It's long-lasting but doesn't damage the intestines."],
+      signs: ["Belly pain that eases after passing stool", "Bloating", "Diarrhoea, constipation or both"],
+      prevent: ["Eat regular meals", "Find and avoid your trigger foods", "Manage stress and stay active", "Adjust fibre with a doctor's advice"],
+      doctor: "See a doctor if symptoms start after age 40, or with weight loss, blood or symptoms at night.",
+      fx: { waves: 1.0, waveAmp: 2.2, irregular: true } },
+  ],
+};
+
+const H = { on: false, organ: null, dis: null, k: 0.8, marks: new THREE.Group(), orig: new Map() };
+model.add(H.marks);
+
+function healthFx() { return H.on && H.dis ? H.dis.fx || {} : {}; }
+function healthFlowMul(id) {
+  const fx = healthFx();
+  let m = fx.flow ? 1 + (fx.flow - 1) * H.k : 1;
+  if (fx.block && fx.block.some(p => id.startsWith(p))) m *= 1 - H.k * (fx.blockAmt || 0.95);
+  if (fx.air && id.startsWith("air_")) m *= 1 - H.k * fx.air;
+  return m;
+}
+function healthBeat() { const fx = healthFx(); return fx.rate ? 1 + (fx.rate - 1) * H.k : 1; }
+function healthWeak() { const fx = healthFx(); return fx.weak ? 1 - 0.6 * H.k : 1; }
+function healthWaveMul() { const fx = healthFx(); return fx.waves ? 1 + (fx.waves - 1) * H.k : 1; }
+
+function setHealth(on) {
+  H.on = on;
+  $("healthBtn").setAttribute("aria-pressed", String(on));
+  $("healthPanel").hidden = !on;
+  if (on) {
+    if (Q.on) setQuiz(false);
+    setPanel(null); $("drawer").hidden = true; $("partsBtn").setAttribute("aria-pressed", "false");
+    $("fnPanel").hidden = true;
+    renderHealth();
+    updateHealthPlay();
+  } else {
+    clearHealthFx();
+    if (H.seeOn) { H.seeOn = false; applySee(F.on && F.see); }
+    if (F.on) $("fnPanel").hidden = false;
+  }
+}
+function updateHealthPlay() {
+  $("hPlay").textContent = F.on ? "Stop animation" : "Show it working";
+  $("hPlay").setAttribute("aria-pressed", String(F.on));
+}
+$("hPlay").addEventListener("click", () => {
+  if (F.on) setFunction(false); else { setFunction(true); $("fnPanel").hidden = true; }
+  updateHealthPlay();
+});
+function renderHealth() {
+  const list = HEALTH[S.organ] || [];
+  if (!H.dis || H.organ !== S.organ) { H.dis = list[0] || null; H.organ = S.organ; }
+  const o = ORGANS.find(x => x.slug === S.organ);
+  $("hTitle").textContent = `Health · ${o ? o.name : ""}`;
+  $("hChips").innerHTML = list.map(d => `<button type="button" class="chip" data-id="${d.id}" aria-pressed="${H.dis && d.id === H.dis.id}">${d.name}</button>`).join("");
+  const d = H.dis;
+  if (!d) { $("hBody").innerHTML = ""; return; }
+  const li = (a) => a.map(x => `<li>${x}</li>`).join("");
+  $("hBody").innerHTML = `
+    <h4>${d.name}</h4>
+    <p>${d.what}</p>
+    <div class="hslide"><span>Healthy</span><input id="hK" type="range" min="0" max="100" value="${Math.round(H.k * 100)}" aria-label="Healthy to ${d.name}"><span>${d.name.split(" (")[0]}</span></div>
+    ${d.emergency ? `<div class="emerg" role="note"><strong>Emergency</strong><span>${d.emergency} ${EMERG}</span></div>` : ""}
+    <details open><summary>Warning signs</summary><ul>${li(d.signs)}</ul></details>
+    <details><summary>Quick facts</summary><ul>${li(d.facts)}</ul></details>
+    <details><summary>Prevention and care</summary><ul>${li(d.prevent)}</ul></details>
+    <details><summary>When to see a doctor</summary><p>${d.doctor}</p></details>
+    <p class="disc">General information for learning, not medical advice or a diagnosis. Always consult a doctor.</p>`;
+  $("hK").addEventListener("input", (e) => { H.k = e.target.value / 100; });
+  buildMarks();
+  const wantSee = !!(d.fx && (d.fx.see || (d.fx.marks && d.fx.marks.some(m => !m.surface))));
+  if (wantSee !== !!H.seeOn) { H.seeOn = wantSee; applySee(wantSee || (F.on && F.see)); }
+}
+$("hChips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  H.dis = (HEALTH[S.organ] || []).find(d => d.id === b.dataset.id) || null;
+  clearHealthFx(); renderHealth();
+});
+$("healthBtn").addEventListener("click", () => setHealth(!H.on));
+$("hClose").addEventListener("click", () => setHealth(false));
+
+/* markers: stones, nodules, ulcers */
+function partPoints(p) {
+  const pos = p.vis.geometry.attributes.position, holder = p.vis.parent, out = [];
+  const step = Math.max(1, Math.floor(pos.count / 4000));
+  for (let i = 0; i < pos.count; i += step) out.push(new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i)).applyMatrix4(holder.matrix));
+  return out;
+}
+function buildMarks() {
+  H.marks.clear();
+  const fx = healthFx();
+  if (!fx.marks) return;
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (const m of fx.marks) {
+    const p = S.byId[m.part]; if (!p) continue;
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(m.color), roughness: 0.55, metalness: 0, clippingPlanes: S.slice ? [plane] : [] });
+    let anchor = p.center.clone();
+    if (m.surface) {
+      const dir = new THREE.Vector3(...m.surface).normalize();
+      let best = -1e9;
+      for (const v of partPoints(p)) { const d = v.clone().sub(p.center).dot(dir); if (d > best) { best = d; anchor = v; } }
+    }
+    if (m.up) anchor.y += S.size.y * m.up * 0.25;
+    for (let i = 0; i < m.n; i++) {
+      const s = new THREE.Mesh(new THREE.IcosahedronGeometry(m.r * (0.7 + 0.6 * rnd()), 1), mat);
+      const sp = m.spread || 0;
+      s.position.copy(anchor).add(new THREE.Vector3((rnd() - 0.5) * sp * 2, (rnd() - 0.5) * sp * 2, (rnd() - 0.5) * sp * 2));
+      s.scale.set(1, 0.75 + 0.4 * rnd(), 1);
+      s.userData.part = m.part;
+      s.renderOrder = 1001;
+      H.marks.add(s);
+    }
+  }
+}
+
+function clearHealthFx() {
+  for (const p of S.parts) {
+    const o = H.orig.get(p.mat);
+    if (o) { p.mat.color.copy(o); }
+    p.hScale = 1;
+  }
+  H.marks.clear();
+  if (F.waveOn) F.waveOn.value = F.on ? 1 : 0;
+  applyVisibility();
+}
+
+const _hc = new THREE.Color(), _ha = new THREE.Color();
+function healthUpdate() {
+  const fx = healthFx();
+  if (!H.on || !H.dis) return;
+  const k = H.k, t = performance.now() / 1000;
+  const tinted = new Set();
+  for (const p of S.parts) {
+    if (!H.orig.has(p.mat)) H.orig.set(p.mat, p.mat.color.clone());
+    p.mat.color.copy(H.orig.get(p.mat));
+    p.hScale = 1;
+    if (!F.on && p.mat.emissive) {
+      if (S.selected === p.meta.id) p.mat.emissive.setRGB(0.10, 0.42, 0.38); else p.mat.emissive.copy(p.baseEmissive || _ha.setRGB(0, 0, 0));
+    }
+  }
+  for (const tt of fx.tint || []) for (const id of tt.ids) {
+    const p = S.byId[id]; if (!p) continue;
+    const a = k * (tt.amt ?? 1);
+    _hc.set(tt.mul || "#ffffff");
+    p.mat.color.lerp(_ha.copy(H.orig.get(p.mat)).multiply(_hc), a);
+    if (tt.add && p.mat.emissive) p.mat.emissive.add(_ha.set(tt.add).multiplyScalar(a));
+    tinted.add(id);
+  }
+  for (const sc of fx.scale || []) for (const id of sc.ids) { const p = S.byId[id]; if (p) p.hScale = 1 + (sc.s - 1) * k; }
+  for (const pu of fx.pulse || []) for (const id of pu.ids) {
+    const p = S.byId[id]; if (!p || !p.mat.emissive) continue;
+    const w = pu.flicker ? (Math.random() < 0.5 ? 1 : 0.15) * (0.5 + 0.5 * Math.sin(t * pu.rate * 6)) : 0.5 + 0.5 * Math.sin(t * Math.PI * 2 * pu.rate);
+    p.mat.emissive.add(_ha.set(pu.color).multiplyScalar(0.55 * k * w));
+  }
+  if (F.waveOn && F.on) {
+    let amp = 1;
+    if (fx.waveAmp) amp = 1 + (fx.waveAmp - 1) * k * (fx.irregular ? (0.4 + 0.6 * Math.abs(Math.sin(t * 0.9) * Math.sin(t * 2.3))) : 1);
+    F.waveOn.value = amp;
+  }
+  for (const m of H.marks.children) {
+    m.visible = k > 0.05 && !(S.byId[m.userData.part] && S.byId[m.userData.part].hidden);
+    m.scale.setScalar(Math.max(0.01, k));
+    m.material.clippingPlanes = S.slice ? [plane] : [];
+  }
+}
+
+/* ================================================================
+   QUIZ: find-the-part and what-does-it-do questions
+   ================================================================ */
+const Q = { on: false, list: [], i: 0, score: 0, answered: false, flash: null };
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function makeQuiz() {
+  const parts = S.parts.filter(p => p.meta.info).map(p => p.meta);
+  const qs = [];
+  for (const pm of shuffle([...parts]).slice(0, 5)) qs.push({ type: "find", part: pm });
+  for (const pm of shuffle([...parts]).slice(0, 5)) {
+    const others = shuffle(parts.filter(x => x.id !== pm.id && x.name.split(" ").slice(-1)[0] !== pm.name.split(" ").slice(-1)[0])).slice(0, 3);
+    if (others.length < 2) continue;
+    qs.push({ type: "mcq", part: pm, options: shuffle([pm, ...others]) });
+  }
+  return shuffle(qs).slice(0, 8);
+}
+function setQuiz(on) {
+  Q.on = on;
+  $("quizBtn").setAttribute("aria-pressed", String(on));
+  $("quizPanel").hidden = !on;
+  if (on) {
+    if (H.on) setHealth(false);
+    setPanel(null); $("fnPanel").hidden = true; $("drawer").hidden = true;
+    Q.list = makeQuiz(); Q.i = 0; Q.score = 0;
+    select(null);
+    renderQuiz();
+  } else {
+    Q.flash = null; select(null);
+    if (F.on) $("fnPanel").hidden = false;
+  }
+}
+function renderQuiz() {
+  const q = Q.list[Q.i];
+  Q.answered = false;
+  $("qCount").textContent = q ? `Question ${Q.i + 1} of ${Q.list.length} · Score ${Q.score}` : `Score ${Q.score} / ${Q.list.length}`;
+  if (!q) {
+    const pct = Math.round(100 * Q.score / Math.max(1, Q.list.length));
+    $("qBody").innerHTML = `<h4>${pct >= 80 ? "Excellent!" : pct >= 50 ? "Good work" : "Keep exploring"}</h4><p>You got ${Q.score} out of ${Q.list.length}. Tap parts and use How it works to learn more, then try again.</p>
+      <div class="acts"><button class="mini" id="qAgain" type="button">Try again</button></div>`;
+    $("qAgain").addEventListener("click", () => setQuiz(true));
+    return;
+  }
+  if (q.type === "find") {
+    $("qBody").innerHTML = `<h4>Tap the ${lowerName(q.part.name)}</h4><p>Find it on the model. Use Slice, Parts or rotate the organ if it's hidden.</p><div id="qFeedback" class="qfb" aria-live="polite"></div>`;
+  } else {
+    $("qBody").innerHTML = `<h4>Which part is this?</h4><p>${q.part.info}</p><div class="qopts">${q.options.map(o => `<button type="button" class="mini qopt" data-id="${o.id}">${o.name}</button>`).join("")}</div><div id="qFeedback" class="qfb" aria-live="polite"></div>`;
+  }
+}
+function lowerName(n) { return /^[A-Z]{2}|^[A-Z]\.|^Segment|^Couinaud/.test(n) ? n : n.charAt(0).toLowerCase() + n.slice(1); }
+function quizAnswer(id) {
+  const q = Q.list[Q.i]; if (!q || Q.answered) return;
+  Q.answered = true;
+  const ok = id === q.part.id;
+  if (ok) Q.score++;
+  const picked = S.byId[id] ? S.byId[id].meta.name : "nothing";
+  $("qFeedback").innerHTML = ok ? `<p><strong class="good">Correct!</strong> ${q.part.fact || ""}</p>`
+    : `<p><strong class="bad">Not quite.</strong> ${q.type === "find" ? `That's the ${lowerName(picked)}. ` : ""}The answer is the <b>${lowerName(q.part.name)}</b>, now highlighted.</p>`;
+  $("qFeedback").insertAdjacentHTML("beforeend", `<div class="acts"><button class="mini" id="qNext" type="button">${Q.i + 1 < Q.list.length ? "Next question" : "See score"}</button></div>`);
+  $("qNext").addEventListener("click", () => { Q.i++; Q.flash = null; S.selected = null; applyVisibility(); renderQuiz(); });
+  document.querySelectorAll(".qopt").forEach(b => { b.disabled = true; if (b.dataset.id === q.part.id) b.classList.add("right"); else if (b.dataset.id === id) b.classList.add("wrong"); });
+  S.selected = q.part.id; applyVisibility();
+  $("qCount").textContent = `Question ${Q.i + 1} of ${Q.list.length} · Score ${Q.score}`;
+}
+$("quizBtn").addEventListener("click", () => setQuiz(!Q.on));
+$("qClose").addEventListener("click", () => setQuiz(false));
+$("qBody").addEventListener("click", (e) => { const b = e.target.closest(".qopt"); if (b) quizAnswer(b.dataset.id); });
+
+/* ================================================================
+   BIOAR SPLASH + first-run touches
+   ================================================================ */
+function hideSplash() {
+  const sp = $("splash"); if (!sp || sp.dataset.gone) return;
+  sp.dataset.gone = "1"; sp.classList.add("out");
+  setTimeout(() => { sp.hidden = true; }, 650);
+}
+const SPLASH_T0 = performance.now();
+function splashReady() {
+  const wait = Math.max(0, 1900 - (performance.now() - SPLASH_T0));
+  setTimeout(hideSplash, wait);
+}
+$("splash").addEventListener("click", hideSplash);
+setTimeout(hideSplash, 7000);   // never block the app
+
+/* organ grows out of the placement ring in AR */
+const GROW = { t0: 0 };
+function growUpdate() {
+  if (!GROW.t0) return;
+  const k = smooth01((performance.now() - GROW.t0) / 650);
+  root.scale.setScalar(Math.max(0.001, k * (1.04 - 0.04 * k)));
+  if (k >= 1) { GROW.t0 = 0; root.scale.setScalar(1); }
+}
+
+/* ---------------- organ index & routing ---------------- */
+function slugFromLocation() {
+  const h = (location.hash || "").replace("#", "").toLowerCase();
+  let q = null; try { q = new URLSearchParams(location.search).get("organ"); } catch (e) {}
+  const s = h || (q || "").toLowerCase();
+  return ORGANS.some(o => o.slug === s) ? s : "body";
+}
+$("index").innerHTML = `<button type="button" data-slug="body" aria-pressed="false"><span class="n">00 · Corpus</span><span class="t">Whole body</span></button>` + ORGANS.map((o, i) =>
+  `<button type="button" data-slug="${o.slug}" aria-pressed="false"><span class="n">${String(i + 1).padStart(2, "0")} · ${o.latin}</span><span class="t">${o.name}</span></button>`).join("");
+$("index").addEventListener("click", (e) => { const b = e.target.closest("button[data-slug]"); if (b && b.dataset.slug !== S.organ) show(b.dataset.slug, true); });
+window.addEventListener("hashchange", () => { const s = slugFromLocation(); if (s !== S.organ) show(s, false); });
+
+/* ---------------- QR codes ---------------- */
+function defaultBase() {
+  if (DEFAULT_BASE) return DEFAULT_BASE;
+  const h = location.href.split("#")[0].split("?")[0];
+  return /^https?:/.test(h) ? h : "";
+}
+function qrSvg(text) {
+  const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount(); let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c} ${r}h1v1h-1z`;
+  return `<svg viewBox="-1 -1 ${n + 2} ${n + 2}" shape-rendering="crispEdges" role="img" aria-label="QR code for ${text}"><rect x="-1" y="-1" width="${n + 2}" height="${n + 2}" fill="var(--qr-bg)"/><path d="${d}" fill="var(--qr-ink)"/></svg>`;
+}
+function renderQRs() {
+  const base = $("base").value.trim().split("#")[0], grid = $("qrgrid");
+  if (!base) { grid.innerHTML = `<p class="how">Paste your app link above to make the codes.</p>`; return; }
+  if (typeof qrcode !== "function") { grid.innerHTML = `<p class="how">The QR code generator didn't load. Reload the page to try again.</p>`; return; }
+  const items = [["Whole body", base], ...ORGANS.map(o => [o.name, `${base}#${o.slug}`])];
+  grid.innerHTML = items.map(([label, url]) => `<div class="qr"><div class="code">${qrSvg(url)}</div><strong>${label}</strong><span class="url">${url}</span><button type="button" data-copy="${url}">Copy link</button></div>`).join("");
+}
+$("qrgrid").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-copy]"); if (!b) return;
+  try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; }
+  catch (err) { const r = document.createRange(); r.selectNodeContents(b.previousElementSibling); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "Selected, press copy"; }
+  setTimeout(() => (b.textContent = "Copy link"), 1800);
+});
+$("apply").addEventListener("click", renderQRs);
+$("base").addEventListener("keydown", (e) => { if (e.key === "Enter") renderQRs(); });
+
+/* ---------------- start ---------------- */
+onResize();
+checkXR();
+show(slugFromLocation(), false);
+$("base").value = defaultBase();
+if (document.readyState === "complete") renderQRs(); else window.addEventListener("load", renderQRs);
+window.__atlas = { Q, setQuiz, quizAnswer, hideSplash, H, HEALTH, setHealth, renderHealth, B, showBody, selectBodyOrgan, flyInto, sounds: { lub, dub, gurgle, breathSound, audioCtx }, S, F, FN, show, setSlice, select, isolate, setPanel, setFunction, gotoStep, setSeeThrough, renderer, camera, controls, turn };
+</script>
+</body>
+</html>
